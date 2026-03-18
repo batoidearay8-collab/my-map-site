@@ -1,0 +1,16 @@
+【インストール注意】
+この配布物は、環境依存の npm レジストリURLが package-lock.json に混ざると npm install が失敗することがあるため、package-lock.json を同梱していません。
+
+Windows での推奨手順:
+1) もし node_modules が残っていたら削除
+   - PowerShell: Remove-Item -Recurse -Force node_modules
+   - cmd: rmdir /s /q node_modules
+
+2) npm のレジストリを確認（npmjs を推奨）
+   npm config set registry https://registry.npmjs.org/
+
+3) 依存関係をインストール
+   npm install
+
+4) 起動
+   npm run dev

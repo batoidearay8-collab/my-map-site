@@ -1,0 +1,4 @@
+id,name,description,name_ja,description_ja,category,image,lat,lng,x,y,url
+1,Info desk,Info / Lost & found,本部,案内・落とし物,展示,,35.681236,139.767125,0.52,0.18,
+2,Stage A,Morning: dance,ステージA,午前はダンス,ステージ,,35.680500,139.766700,0.68,0.62,
+3,Toilet,Often crowded,トイレ,混雑しやすい,トイレ,,35.681700,139.768000,0.12,0.40,

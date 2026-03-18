@@ -1,0 +1,601 @@
+:root{
+  /* default (dark) */
+  --bg:#050a12;
+  --card:#0a1424;
+  --card2:#08101e;
+  --text:#eaf1ff;
+  --muted:#a7b4cc;
+  --line:#1b2a44;
+  --btn:#0c1a2f;
+  --btn2:#102646;
+  --accent:#9cc9ff; /* pale blue */
+
+  --input-bg:#060d18;
+}
+
+:root[data-theme="light"]{
+  /* light theme keeps the same "black + pale blue" identity, just brighter */
+  --bg:#eef6ff;
+  --card:#ffffff;
+  --card2:#f6fbff;
+  --text:#061327;
+  --muted:#30435f;
+  --line:#cfe0f6;
+  --btn:#eef6ff;
+  --btn2:#e0efff;
+  --accent:#2f74ff;
+
+  --input-bg:#ffffff;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+a{color:inherit}
+
+.topbar{
+  position:sticky; top:0; z-index:10;
+  padding:12px 14px;
+  border-bottom:1px solid var(--line);
+  background:color-mix(in srgb, var(--bg) 85%, transparent);
+  backdrop-filter:blur(10px);
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  text-decoration:none;
+  padding: 2px 4px;
+  border-radius: 14px;
+}
+
+.brandLogo{
+  height:40px;
+  width:auto;
+  border-radius:12px;
+  border:1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  background: var(--card2);
+}
+
+.brand .title{font-weight:900; font-size:16px; letter-spacing:0.2px}
+.brand .subtitle{color:var(--muted); font-size:12px; margin-top:2px}
+
+.controls{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+
+.inlineLabel{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:12px;
+  color:var(--muted);
+}
+.inlineLabel select{font-size:12px}
+
+select,input,textarea{
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid var(--line);
+  background:var(--input-bg);
+  color:var(--text);
+  outline:none;
+}
+
+select:focus,input:focus,textarea:focus{
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+textarea{
+  min-height:160px;
+  width:100%;
+  resize:vertical;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid var(--line);
+  background:var(--btn);
+  color:var(--text);
+  text-decoration:none;
+  cursor:pointer;
+  gap:8px;
+}
+.btn:hover{background:var(--btn2)}
+.btn.soft{
+  border-color:color-mix(in srgb, var(--accent) 35%, transparent);
+  background:color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.btn.soft:hover{background:color-mix(in srgb, var(--accent) 12%, transparent)}
+
+.btn.primary{
+  border-color:color-mix(in srgb, var(--accent) 55%, transparent);
+  background:color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.btn.primary:hover{background:color-mix(in srgb, var(--accent) 24%, transparent)}
+
+/* Green button (used for "Apply to CSV" and "Apply to map") */
+.btn.success{
+  border-color:color-mix(in srgb, #34d399 55%, transparent);
+  background:color-mix(in srgb, #34d399 16%, transparent);
+}
+.btn.success:hover{background:color-mix(in srgb, #34d399 24%, transparent)}
+
+/* Slightly red button (used for "Apply to CSV") */
+.btn.danger{
+  border-color:color-mix(in srgb, #ff6b6b 55%, transparent);
+  background:color-mix(in srgb, #ff6b6b 16%, transparent);
+}
+.btn.danger:hover{background:color-mix(in srgb, #ff6b6b 24%, transparent)}
+
+/* Color picker button (used in Builder marker settings) */
+.colorBtn{
+  width:44px;
+  height:34px;
+  padding:0;
+  border-radius:12px;
+  border:1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+  position:relative;
+}
+.colorBtn input[type="color"]{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  opacity:0;
+  cursor:pointer;
+}
+
+.layout{
+  display:grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap:12px;
+  padding:12px;
+  height:calc(100vh - 58px);
+}
+
+/* Map-only display (mobile-friendly) */
+.layout.mapOnly{
+  grid-template-columns:1fr;
+  padding:0;
+  gap:0;
+}
+.layout.mapOnly .pane{
+  border-radius:0;
+  border:0;
+}
+.layout.mapOnly .mapWrap{border-radius:0;}
+
+.msf-mapOnlyBar{
+  position:absolute;
+  top:12px;
+  left:12px;
+  z-index:750;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.msf-mapOnlyBar .btn{padding:8px 10px; border-radius:999px;}
+
+/* Builder uses a single column (no always-on preview map) */
+.layoutSingle{
+  grid-template-columns: 1fr;
+}
+
+.pane{
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:var(--card);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+
+.paneHeader{
+  padding:10px 12px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+
+.paneBody{flex:1; overflow:auto; padding:10px}
+/* Map area: clip Leaflet layers so they never cover UI below */
+.mapWrap{height:100%; width:100%; position:relative; overflow:hidden; border-radius:14px}
+
+/* Prevent the Leaflet canvas from visually overlapping adjacent sections */
+.mapWrap{position:relative; overflow:hidden}
+
+/* Map overlay controls (e.g., "My location" button) */
+.msf-locateWrap{
+  position:absolute;
+  top:12px;
+  right:12px;
+  z-index:700; /* above Leaflet panes */
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.msf-locateBtn{
+  width:44px;
+  height:44px;
+  padding:0;
+  border-radius:999px;
+  font-size:20px;
+
+  /* Make it clearly visible on top of the map */
+  background:var(--accent);
+  border-color:color-mix(in srgb, var(--accent) 65%, black);
+  color:white;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.22);
+}
+.msf-locateBtn:hover{
+  filter:brightness(1.05);
+}
+.msf-locateBtn.isBusy{opacity:0.8; cursor:progress;}
+
+/* "My location" marker (no external image assets) */
+.msf-mypos-icon{ background:transparent; border:none; }
+.msf-mypos-dot{
+  width:14px;
+  height:14px;
+  border-radius:999px;
+  background:var(--accent);
+  border:2px solid rgba(255,255,255,0.9);
+  box-shadow:0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.hint{color:var(--muted); font-size:12px; line-height:1.6}
+.dangerText{color:#ff6464}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px}
+.cards{display:grid; gap:10px}
+
+.card{
+  border:1px solid var(--line);
+  background:var(--card2);
+  border-radius:14px;
+  padding:10px;
+}
+
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.badge{font-size:12px; color:var(--muted)}
+
+.savePill{
+  display:inline-flex;
+  gap:6px;
+  align-items:center;
+  padding:6px 10px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--card2);
+  font-size:12px;
+  line-height:1;
+}
+.savePill.saved{opacity:0.85}
+.savePill.unsaved{font-weight:900}
+
+
+.listItem{
+  border:1px solid var(--line);
+  background:var(--card2);
+  border-radius:14px;
+  padding:10px;
+  cursor:pointer;
+}
+.listItem:hover{border-color:color-mix(in srgb, var(--line) 40%, var(--text))}
+.listItem .name{font-weight:800}
+.bizIcon{margin-right:6px;}
+.listItem .meta{color:var(--muted); font-size:12px; margin-top:4px}
+
+.modalBackdrop{
+  position:fixed; inset:0;
+  z-index:9999;
+  background:rgba(0,0,0,0.55);
+  display:flex; align-items:center; justify-content:center;
+  padding:12px;
+}
+
+.modal{
+  width:min(780px, 100%);
+  max-height:calc(100vh - 24px);
+  overflow:auto;
+  border:1px solid var(--line);
+  background:var(--input-bg);
+  border-radius:18px;
+  padding:12px;
+}
+
+.modalHeader{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  position:sticky; top:0;
+  background:var(--input-bg);
+  padding-bottom:8px;
+}
+
+.modalTitle{font-weight:900; font-size:18px}
+
+.danger{
+  border:1px solid color-mix(in srgb, #ff6464 35%, transparent);
+  background:color-mix(in srgb, #ff6464 8%, transparent);
+  padding:10px;
+  border-radius:14px;
+}
+
+.ok{
+  border:1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background:color-mix(in srgb, var(--accent) 8%, transparent);
+  padding:10px;
+  border-radius:14px;
+}
+
+@media (max-width: 980px){
+  .layout{grid-template-columns:1fr; height:auto}
+  .mapWrap{height:60vh}
+}
+
+/* ===== Map marker styles (custom divIcon) ===== */
+.msf-divicon{
+  background: transparent;
+  border: none;
+  overflow: visible;
+}
+
+.msf-markerWrap{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.msf-marker.isClosed{
+  opacity: 0.55;
+  filter: grayscale(0.75) saturate(0.65);
+}
+
+.msf-statusDot{
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.95);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.22);
+}
+.msf-statusDot--open{ background:#2ecc71; }
+.msf-statusDot--closed{ background:#ff4d4f; }
+.msf-statusDot--unknown{ background:#9aa3ad; }
+
+.msf-marker{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform: translateZ(0);
+  user-select: none;
+}
+
+.msf-marker__svg{display:block; filter: drop-shadow(0 6px 10px rgba(0,0,0,0.35));}
+
+.msf-marker__glyph{
+  position:absolute;
+  left:50%;
+  top: 19px;
+  transform: translate(-50%,-50%);
+  font-size: 14px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  display:grid;
+  place-items:center;
+}
+
+.msf-marker--badge .msf-marker__badge{
+  min-width: 44px;
+  height: 28px;
+  border-radius: 14px;
+  border: 2px solid color-mix(in srgb, var(--mc) 80%, #000);
+  background: color-mix(in srgb, var(--mc) 30%, #fff);
+  color: #0b0c10;
+  font-weight: 800;
+  display:grid;
+  place-items:center;
+  box-shadow: 0 8px 14px rgba(0,0,0,0.25);
+}
+
+.msf-marker--dot .msf-marker__dot{
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--mc) 80%, #000);
+  background: color-mix(in srgb, var(--mc) 35%, #fff);
+  color: #0b0c10;
+  font-weight: 900;
+  display:grid;
+  place-items:center;
+  box-shadow: 0 8px 14px rgba(0,0,0,0.25);
+}
+
+.msf-marker--ring .msf-marker__ring{
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 3px solid color-mix(in srgb, var(--mc) 85%, #000);
+  background: transparent;
+  color: color-mix(in srgb, var(--mc) 90%, #000);
+  font-weight: 900;
+  display:grid;
+  place-items:center;
+  box-shadow: 0 8px 14px rgba(0,0,0,0.18);
+}
+
+.msf-marker--square .msf-marker__square{
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid color-mix(in srgb, var(--mc) 80%, #000);
+  background: color-mix(in srgb, var(--mc) 30%, #fff);
+  color: #0b0c10;
+  font-weight: 900;
+  display:grid;
+  place-items:center;
+  box-shadow: 0 8px 14px rgba(0,0,0,0.22);
+}
+
+.msf-marker--hex .msf-marker__hex{
+  width: 24px;
+  height: 22px;
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  border: 2px solid color-mix(in srgb, var(--mc) 80%, #000);
+  background: color-mix(in srgb, var(--mc) 28%, #fff);
+  color: #0b0c10;
+  font-weight: 900;
+  display:grid;
+  place-items:center;
+  box-shadow: 0 8px 14px rgba(0,0,0,0.22);
+}
+
+.msf-marker--flag{
+  width: 38px;
+  height: 46px;
+}
+
+.msf-marker--flag .msf-marker__pole{
+  position:absolute;
+  left: 9px;
+  bottom: 2px;
+  width: 3px;
+  height: 44px;
+  background: color-mix(in srgb, var(--mc) 70%, #000);
+  border-radius: 4px;
+  box-shadow: 0 8px 14px rgba(0,0,0,0.18);
+}
+
+.msf-marker--flag .msf-marker__flag{
+  position:absolute;
+  left: 12px;
+  top: 6px;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 2px solid color-mix(in srgb, var(--mc) 80%, #000);
+  background: color-mix(in srgb, var(--mc) 28%, #fff);
+  color: #0b0c10;
+  font-weight: 900;
+  display:grid;
+  place-items:center;
+  box-shadow: 0 8px 14px rgba(0,0,0,0.22);
+}
+
+
+/* Fixed "Next" button for long editor screens */
+.nextFixed{
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 60;
+  box-shadow: 0 14px 30px rgba(0,0,0,0.35);
+}
+
+/* Easy editors */
+.editorTabs{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-bottom: 10px;
+}
+.editorSplit{
+  display:grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 12px;
+}
+@media (max-width: 980px){
+  .editorSplit{ grid-template-columns: 1fr; }
+  .nextFixed{ right: 12px; bottom: 12px; }
+}
+.listBox{
+  border:1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 92%, #000);
+  overflow: hidden;
+}
+.listItem{
+  padding: 10px 12px;
+  border-bottom:1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  cursor: pointer;
+}
+.listItem:hover{ background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.listItem.active{ background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.formRow{
+  display:grid;
+  grid-template-columns: 170px 1fr;
+  gap: 10px;
+  align-items:center;
+  margin: 8px 0;
+}
+.formRow input, .formRow select, .formRow textarea{
+  width:100%;
+}
+
+
+/* Leaflet popup theme (match app colors so buttons are readable) */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip{
+  background:var(--card);
+  color:var(--text);
+  border:1px solid var(--line);
+}
+.leaflet-popup-content{color:var(--text)}
+.leaflet-popup-close-button{color:var(--muted)!important}
+.leaflet-container a{color:var(--accent)}
+
+
+/* Builder: thumbnails */
+.floorPreview{ margin-bottom:10px; }
+.thumbGrid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
+.thumbItem{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:10px;
+  border:1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.18);
+  border-radius: 14px;
+}
+.thumbItem img{ width:100%; height:120px; object-fit:cover; border-radius: 12px; border:1px solid rgba(255,255,255,0.10); }
+.thumbFallback{ height:120px; display:flex; align-items:center; justify-content:center; border-radius:12px; border:1px dashed rgba(255,255,255,0.18); color:var(--muted); font-weight:900; }
+.thumbMeta{ display:flex; flex-direction:column; gap:2px; }
+.thumbName{ font-weight:800; font-size:13px; }
+.list{ display:flex; flex-direction:column; gap:6px; }
+.listItem{
+  width:100%;
+  text-align:left;
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:14px;
+  padding:10px;
+  background: rgba(255,255,255,0.04);
+}
+.listItem.active{
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.leaflet-popup-content .btn.primary{
+  background: var(--accent);
+  color: #06121f;
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.leaflet-popup-content .btn.primary:hover{
+  background: color-mix(in srgb, var(--accent) 85%, #ffffff 15%);
+}
