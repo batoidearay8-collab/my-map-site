@@ -6,6 +6,7 @@ import { pickPoiName, pickPoiDescription, pickCategoryLabel } from "../lib/conte
 import { publicUrl } from "../lib/publicUrl";
 import { t, type UiLang } from "../lib/i18n";
 import { getOpenStatus, hasBusinessInfo, type OpenStatus } from "../lib/openStatus";
+import { MarkerClusterGroup, type ClusterItem } from "./MarkerCluster";
 
 function LocateControl({ enabled, uiLang }: { enabled: boolean; uiLang: UiLang }) {
   const map = useMap();
@@ -232,15 +233,15 @@ function makeDivIcon(type: MarkerType, color: string, glyph: string, title?: str
   return icon;
 }
 
-function markerLatLng(cfg: AppConfig, poi: Poi): L.LatLngExpression | null {
+function markerLatLng(cfg: AppConfig, poi: Poi, floorW?: number, floorH?: number): L.LatLngExpression | null {
   if (cfg.mode === "outdoor") {
     if (typeof poi.lat !== "number" || typeof poi.lng !== "number") return null;
     return [poi.lat, poi.lng];
   }
 
   if (typeof poi.x !== "number" || typeof poi.y !== "number") return null;
-  const w = cfg.indoor.imageWidthPx;
-  const h = cfg.indoor.imageHeightPx;
+  const w = floorW ?? cfg.indoor.imageWidthPx;
+  const h = floorH ?? cfg.indoor.imageHeightPx;
 
   // Allow both:
   // - normalized coordinates: 0..1
@@ -267,6 +268,8 @@ export function MapView(props: {
   openOnly?: boolean;
   /** Optional timestamp to keep time-based indicators (e.g., "open" ) in sync. */
   now?: number;
+  /** Active floor ID for multi-floor indoor maps. */
+  activeFloor?: string;
   onPickPoi?: (poi: Poi) => void;
 
   // Builder helper: map click
@@ -282,6 +285,18 @@ export function MapView(props: {
   const now = useMemo(() => new Date(props.now ?? Date.now()), [props.now]);
   const openOnly = !!props.openOnly;
 
+  // Resolve active floor for multi-floor indoor maps
+  const floors = config.indoor.floors ?? [];
+  const activeFloorId = props.activeFloor ?? (floors.length > 0 ? floors[0].id : "");
+  const activeFloorDef = useMemo(() => {
+    if (!floors.length) return null;
+    return floors.find(f => f.id === activeFloorId) ?? floors[0] ?? null;
+  }, [floors, activeFloorId]);
+
+  // Effective indoor dimensions (floor-specific or default)
+  const indoorW = activeFloorDef?.imageWidthPx ?? config.indoor.imageWidthPx;
+  const indoorH = activeFloorDef?.imageHeightPx ?? config.indoor.imageHeightPx;
+
   const filtered = useMemo(() => {
     const q = (props.query ?? "").trim().toLowerCase();
     const cat = props.activeCategory ?? "";
@@ -295,16 +310,24 @@ export function MapView(props: {
       const txt = `${p.name} ${p.description} ${name} ${desc}`.toLowerCase();
       const okQ = !q || txt.includes(q);
 
-if (openOnly) {
-  const showBiz = config.mode === "outdoor" && hasBusinessInfo(p as any);
-  if (!showBiz) return false;
-  const st = getOpenStatus(p as any, now);
-  if (st !== "open") return false;
-}
+      if (openOnly) {
+        const showBiz = config.mode === "outdoor" && hasBusinessInfo(p as any);
+        if (!showBiz) return false;
+        const st = getOpenStatus(p as any, now);
+        if (st !== "open") return false;
+      }
 
-return okCat && okQ;
+      // Multi-floor: only show POIs on the active floor
+      if (config.mode === "indoor" && floors.length >= 2) {
+        const poiFloor = (p.floor ?? "").trim();
+        // POIs with no floor are shown on the first floor
+        const effectiveFloor = poiFloor || floors[0]?.id || "";
+        if (effectiveFloor !== activeFloorId) return false;
+      }
+
+      return okCat && okQ;
     });
-  }, [pois, props.query, props.activeCategory, contentLang, openOnly, config.mode, now]);
+  }, [pois, props.query, props.activeCategory, contentLang, openOnly, config.mode, now, floors, activeFloorId]);
 
   const catMap = useMemo(() => {
     const m = new Map<string, Category>();
@@ -315,39 +338,39 @@ return okCat && okQ;
   const bounds = useMemo(() => {
     const latlngs: L.LatLng[] = [];
     for (const p of filtered) {
-      const ll = markerLatLng(config, p);
+      const ll = markerLatLng(config, p, indoorW, indoorH);
       if (!ll) continue;
       latlngs.push(L.latLng(ll as any));
     }
     if (!latlngs.length) return null;
     return L.latLngBounds(latlngs);
-  }, [filtered, config]);
+  }, [filtered, config, indoorW, indoorH]);
 
   const indoorBounds = useMemo(() => {
-    const w = config.indoor.imageWidthPx;
-    const h = config.indoor.imageHeightPx;
-    return L.latLngBounds([0, 0], [h, w]);
-  }, [config]);
+    return L.latLngBounds([0, 0], [indoorH, indoorW]);
+  }, [indoorW, indoorH]);
 
   const indoorImageUrl = useMemo(() => {
     if (config.mode !== "indoor") return "";
+
     const u = (props.indoorImageOverrideUrl ?? "").trim();
-    if (!u) {
-      const raw = (config.indoor.imageUrl ?? "").trim();
-      if (raw.startsWith("blob:") || raw.startsWith("data:") || /^https?:\/\//i.test(raw)) return raw;
-      return publicUrl(raw);
+    if (u) {
+      if (u.startsWith("blob:") || u.startsWith("data:") || /^https?:\/\//i.test(u)) return u;
+      return publicUrl(u);
     }
-    // If it's already an absolute/blob/data URL, use it as-is.
-    if (u.startsWith("blob:") || u.startsWith("data:") || /^https?:\/\//i.test(u)) return u;
-    return publicUrl(u);
-  }, [config.mode, config.indoor.imageUrl, props.indoorImageOverrideUrl]);
+
+    // Multi-floor: use floor-specific image URL
+    const raw = (activeFloorDef?.imageUrl ?? config.indoor.imageUrl ?? "").trim();
+    if (raw.startsWith("blob:") || raw.startsWith("data:") || /^https?:\/\//i.test(raw)) return raw;
+    return publicUrl(raw);
+  }, [config.mode, config.indoor.imageUrl, activeFloorDef, props.indoorImageOverrideUrl]);
 
   const centerOutdoor = config.outdoor.center as [number, number];
 
   return (
     <div className="mapWrap">
       <MapContainer
-        center={config.mode === "outdoor" ? centerOutdoor : [config.indoor.imageHeightPx / 2, config.indoor.imageWidthPx / 2]}
+        center={config.mode === "outdoor" ? centerOutdoor : [indoorH / 2, indoorW / 2]}
         zoom={config.mode === "outdoor" ? config.outdoor.zoom : 0}
         crs={config.mode === "indoor" ? L.CRS.Simple : L.CRS.EPSG3857}
         minZoom={config.mode === "indoor" ? (config.indoor.minZoom ?? -2) : undefined}
@@ -367,32 +390,30 @@ return okCat && okQ;
 
         <MapClick onClick={props.onMapClick} />
 
-        {filtered.map((p, idx) => {
-          const ll = markerLatLng(config, p);
-          if (!ll) return null;
+        {/* Clustered markers for outdoor mode (>20 POIs); individual markers otherwise */}
+        {(() => {
+          const useCluster = config.mode === "outdoor" && filtered.length > 20 && !props.onMapClick;
 
-          const cat = catMap.get(p.category);
-          const catLabel = cat ? pickCategoryLabel(cat, contentLang) : p.category;
+          const markerItems = filtered.map((p, idx) => {
+            const ll = markerLatLng(config, p, indoorW, indoorH);
+            if (!ll) return null;
 
-          const name = pickPoiName(p, contentLang);
-          const desc = pickPoiDescription(p, contentLang);
+            const cat = catMap.get(p.category);
+            const catLabel = cat ? pickCategoryLabel(cat, contentLang) : p.category;
+            const name = pickPoiName(p, contentLang);
+            const desc = pickPoiDescription(p, contentLang);
 
-          const markerType = (cat?.markerType ?? "pin") as MarkerType;
-          const color = resolveColor(p.category, cat?.markerColor, cat?.order ?? idx);
-          const glyph = (cat?.icon ?? "").trim() || "•";
+            const markerType = (cat?.markerType ?? "pin") as MarkerType;
+            const color = resolveColor(p.category, cat?.markerColor, cat?.order ?? idx);
+            const glyph = (cat?.icon ?? "").trim() || "•";
 
-          const bizStatus: OpenStatus | undefined =
-            (config.mode === "outdoor" && hasBusinessInfo(p as any))
-              ? getOpenStatus(p as any, now)
-              : undefined;
+            const bizStatus: OpenStatus | undefined =
+              (config.mode === "outdoor" && hasBusinessInfo(p as any))
+                ? getOpenStatus(p as any, now)
+                : undefined;
 
-          return (
-            <Marker
-              key={p.id}
-              position={ll}
-              icon={makeDivIcon(markerType, color, glyph, catLabel, bizStatus)}
-            >
-              <Popup>
+            const popup = (
+              <>
                 <div style={{ fontWeight: 900 }}>{cat?.icon ? `${cat.icon} ` : ""}{name}</div>
                 <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>{catLabel}</div>
                 {config.mode === "outdoor" && hasBusinessInfo(p as any) ? (() => {
@@ -407,10 +428,27 @@ return okCat && okQ;
                     <button className="btn primary" onClick={() => props.onPickPoi?.(p)}>{t(uiLang, "open_details")}</button>
                   </div>
                 ) : null}
-              </Popup>
+              </>
+            );
+
+            return {
+              position: ll,
+              data: p,
+              icon: makeDivIcon(markerType, color, glyph, catLabel, bizStatus),
+              popup,
+            } as ClusterItem<Poi>;
+          }).filter(Boolean) as ClusterItem<Poi>[];
+
+          if (useCluster) {
+            return <MarkerClusterGroup items={markerItems} disableClusteringAtZoom={16} gridSize={80} />;
+          }
+
+          return markerItems.map((item, idx) => (
+            <Marker key={idx} position={item.position} icon={item.icon}>
+              <Popup>{item.popup}</Popup>
             </Marker>
-          );
-        })}
+          ));
+        })()}
 
         {bounds ? <FitBounds bounds={bounds} /> : null}
       </MapContainer>

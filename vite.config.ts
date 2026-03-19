@@ -1,10 +1,11 @@
+/// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   // Relative base so the built site works from any folder (GitHub Pages / sub-dir hosting).
-  base: "/my-map-site/",
+  base: "./",
   plugins: [
     react(),
     VitePWA({
@@ -45,5 +46,10 @@ export default defineConfig({
   server: { port: 5173 },
   build: {
     sourcemap: true
+  },
+  test: {
+    globals: true,
+    environment: "node",
+    include: ["src/**/*.test.ts"],
   }
 });

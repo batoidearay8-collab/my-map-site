@@ -1,20 +1,26 @@
-# Map Site Framework (React + Leaflet)
+# AtlasKobo — Map Site Framework (React + Leaflet)
 
-**技術的背景がない人でも「地図サイトを作る → 確認 → 公開」まで**進められるように作った、静的ホスティング前提のマップサイトフレームワークです。
+**技術的背景がない人でも「地図サイトを作る → 確認 → 公開」まで**進められる、静的ホスティング前提のマップサイトフレームワークです。
 
 基本の流れ：
 1) テンプレを選ぶ
-2) 表データ（CSV）と画像を入れる
+2) 表データ（CSV / GeoJSON）と画像を入れる
 3) できあがりを地図で確認
 4) 公開担当（先生・運営・サーバ管理者）へ ZIP を渡す / 公開する
 
 ## 特徴
 - **React + Leaflet**（ビューア/ビルダー両方）
+- **100% オープンソース**（Google / Apple 非依存）
 - **データは public/data/*.json**（ビルド時に `data/*.csv` から生成可能）
-- **画像は public/images/**、屋内フロアマップは **public/assets/**
+- **GeoJSON 対応**: QGIS / uMap などOSSツールとの相互運用
+- **マーカークラスタリング**: 50件以上のPOIでも快適に表示
 - **軽量**: 取り込み時に画像を圧縮
 - **オフライン寄り**: PWA（CacheFirst）で data/images/assets をキャッシュ
-- **個人情報ガード**: 注意バナー + 緯度経度の丸め（公開用エクスポートに適用）
+- **個人情報ガード**: 注意バナー（dismiss可能） + 緯度経度の丸め
+- **アクセシビリティ**: スキップリンク、ARIA ランドマーク、キーボード操作対応
+- **レスポンシブ**: モバイルファーストのビルダー/ビューアUI
+- **埋め込み対応**: iframe でのページ組み込みコード生成
+- **7種テンプレート**: 観光・ライブ・祭り・文化祭・防災・アウトドア・便利マップ
 
 ## 開始（開発者向け）
 ```bash
@@ -26,51 +32,63 @@ npm run dev
 
 ---
 
-## ロゴとファビコン（ここに置けばOK）
+## ロゴとファビコン
 
-このプロジェクトは **`public/` フォルダの中に置いたファイルを、そのまま公開サイトにコピー**します。
-
-- ファビコン（ブラウザのタブに出る小さいアイコン）
-  - `public/favicon.svg` をあなたのファイルで上書きしてください
-- サイトロゴ（左上に表示）
-  - `public/brand/logo.svg` をあなたのロゴで上書きしてください
-  - PNG/JPG を使いたい場合は `logo.png` などにして、`src/App.tsx` の `publicUrl("brand/logo.svg")` を差し替えます
-
-※ どちらも「まずは仮の画像」が入っているので、そのままでも動きます。
+- ファビコン: `public/favicon.svg` をあなたのファイルで上書き
+- サイトロゴ: `public/brand/logo.svg` をあなたのロゴで上書き
+- PNG/JPG を使う場合は `logo.png` にして、`src/App.tsx` の参照を差し替え
 
 ## CSV→JSON（ビルド時）
-- 入力: `data/pois.csv`, `data/categories.csv`, `data/config.json`
-- 出力: `public/data/pois.json`, `public/data/categories.json`, `public/data/config.json`
 ```bash
 npm run build:data
 ```
 
+## GeoJSON 対応
+ビルダーの Step 2 で `.geojson` ファイルを読み込み可能。エクスポートも対応。
+QGIS / geojson.io で編集 → AtlasKobo に戻すワークフローに最適。
+
 ## 公開のしかた（非エンジニア向け）
 
-このフレームワークのビルダーが出力する **`content-pack.zip` は「地図に表示するデータと画像のセット」**です。
-まずはこの ZIP を作れば OK。次は公開担当が行います。
-
-### 1) ビルダーで ZIP を作る
-ビルダーの「**公開用ファイルをダウンロード**」を押す → `content-pack.zip` が落ちてきます。
-
-### 2) 公開担当（先生・運営・サーバ管理者）へ渡す
-メール / LINE / Google Drive などで ZIP を渡してください。
-
-### 3) 公開担当がやること（かんたん）
-1. `content-pack.zip` を **解凍**する
-2. 中の `data/`, `images/`, `assets/` を、公開サイトの同名フォルダに **上書きコピー**する
-3. ブラウザで開いて **地図とマーカーが表示される**か確認する
-
-> ポイント：サイトの「土台」は最初に一度だけ作れば、次回からは **`data/images/assets` を差し替えるだけ**で更新できます。
-
----
-
-## 公開用ZIP（開発者/公開担当向け）
-```bash
-npm run pack
-```
-- `release/site.zip` が生成されます。中身を GitHub Pages / 学内Webサーバ に配置してください。
+1. ビルダーで `site.zip` をダウンロード
+2. 公開担当へ渡す
+3. 解凍して GitHub Pages / 学内サーバに配置
+4. 2回目以降は `content-pack.zip` で差し替えるだけ
 
 ## 屋内/屋外データ
 - 屋外: `lat,lng`
 - 屋内: `x,y`（0〜1の正規化座標）
+
+## マーカー種類
+`markerType`: pin / dot / badge / ring / square / hex / flag
+
+## テンプレート
+tourism / live / festival / school_festival / disaster / outdoor_activity / convenience
+
+---
+
+## v10.4.0 変更履歴
+
+### バグ修正 (5件)
+- `pickPoiName()` / `pickCategoryLabel()` 引数ミスマッチ修正
+- `DetailsModal` に正しい `mode` / `now` props を渡すよう修正
+- `QrModal` に `uiLang` prop を追加
+- `DropZone` の `label` → `title` prop修正
+- `outdoor.centerLat/centerLng` → `outdoor.center[0]/[1]` 修正
+
+### スキーマ・型安全性
+- `ConfigSchema` に `reco` フィールドを正式追加
+- `template` enum を7種に拡張
+- BuilderPage内の `as any` キャスト大幅削減
+
+### 新機能
+- **マーカークラスタリング**: 20件以上のPOIで自動グループ化
+- **GeoJSON インポート/エクスポート**: QGIS / uMap 連携
+- **埋め込みコード生成**: iframe用コードをStep 4でコピー
+- **ローディングインジケータ**: ZIP生成時にスピナー表示
+
+### UI/UX改善
+- **プライバシーバナー**: ビューアで dismiss 可能に
+- **アクセシビリティ**: スキップリンク、ARIA、キーボード操作、focus-visible
+- **モバイル対応**: ビルダーのレスポンシブ改善
+- **リスト表示改善**: ホバーエフェクト、アクセントボーダー
+- **公開サイトCSS**: ライトモード配色をビルダーと統一

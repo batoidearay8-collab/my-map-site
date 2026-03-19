@@ -27,7 +27,7 @@ export type ExportSiteInput = ExportInput & {
 
 function themeCss(preset: ThemePreset): string {
   const map: Record<ThemePreset, string> = {
-    blue: "#6ea8fe",
+    blue: "#4db87a",
     green: "#2fd4a3",
     orange: "#ffb020",
     purple: "#b39ddb",

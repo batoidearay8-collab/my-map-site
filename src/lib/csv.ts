@@ -62,7 +62,10 @@ export function parsePoisFromCsv(text: string): Poi[] {
       closed: pickFirst(r, ["closed", "holidays", "holiday", "closedDays", "closed_days", "休業日", "定休日", "休み"]),
 
       nameI18n: collectI18nFields(r, "name"),
-      descriptionI18n: { ...collectI18nFields(r, "description"), ...collectI18nFields(r, "desc") }
+      descriptionI18n: { ...collectI18nFields(r, "description"), ...collectI18nFields(r, "desc") },
+
+      // Multi-floor indoor support
+      floor: pickFirst(r, ["floor", "Floor", "フロア", "階"]),
     };
 
     const lat = Number((r as any).lat);

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppStore } from "../state/store";
 import { MapView } from "../components/MapView";
+import { FloorSelector } from "../components/FloorSelector";
 import { DetailsModal } from "../components/DetailsModal";
 import { type Poi } from "../lib/schema";
 import { pickPoiName, pickPoiDescription, pickCategoryLabel } from "../lib/contentText";
@@ -16,6 +17,7 @@ export function ViewerPage() {
   const [cat, setCat] = useState("");
   const [q, setQ] = useState("");
   const [picked, setPicked] = useState<Poi | null>(null);
+  const [activeFloor, setActiveFloor] = useState("");
 
   const [copied, setCopied] = useState(false);
 
@@ -38,6 +40,15 @@ export function ViewerPage() {
   }, []);
 
   useEffect(() => { if (!isLoaded) void loadFromPublic(); }, [isLoaded, loadFromPublic]);
+
+  // Initialize active floor to first floor when config loads
+  useEffect(() => {
+    if (!config) return;
+    const floors = config.indoor?.floors ?? [];
+    if (floors.length >= 2 && !activeFloor) {
+      setActiveFloor(floors[0].id);
+    }
+  }, [config, activeFloor]);
 
   const copyText = async (text: string) => {
     // Prefer the modern clipboard API
@@ -144,13 +155,19 @@ export function ViewerPage() {
   const categoryObj = picked ? categories.find(c => c.category === picked.category) : undefined;
 
   return (
-    <main className={"layout" + (mapOnly ? " mapOnly" : "")}>
-      <section className="pane">
+    <main className={"layout" + (mapOnly ? " mapOnly" : "")} role="main">
+      {/* Skip links for keyboard/screen reader users */}
+      <nav className="skipLinks" aria-label="Skip navigation">
+        <a href="#msf-map" className="skipLink">{t(uiLang, "skip_to_map")}</a>
+        {!mapOnly ? <a href="#msf-list" className="skipLink">{t(uiLang, "skip_to_list")}</a> : null}
+      </nav>
+
+      <section className="pane" aria-label={t(uiLang, "map_region")}>
         {!mapOnly ? (
           <div className="paneHeader" style={{ alignItems: "stretch" }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="row">
-                <select value={cat} onChange={(e) => setCat(e.target.value)}>
+                <select value={cat} onChange={(e) => setCat(e.target.value)} aria-label={t(uiLang, "all")}>
                   <option value="">{t(uiLang, "all")}</option>
                   {catList.map(key => {
                     const c = catMap.get(key);
@@ -179,7 +196,18 @@ export function ViewerPage() {
           </div>
         ) : null}
 
-        <div className="mapWrap">
+        <div className="mapWrap" id="msf-map">
+          {config.mode === "indoor" && (config.indoor.floors ?? []).length >= 2 ? (
+            <div style={{ position: "absolute", top: 10, right: 10, zIndex: 500 }}>
+              <FloorSelector
+                config={config}
+                activeFloor={activeFloor || (config.indoor.floors?.[0]?.id ?? "")}
+                onChange={setActiveFloor}
+                contentLang={contentLang}
+                uiLang={uiLang}
+              />
+            </div>
+          ) : null}
           <MapView
             config={config}
             mapOnly={mapOnly}
@@ -187,6 +215,7 @@ export function ViewerPage() {
             pois={pois}
             categories={categories}
             activeCategory={cat}
+            activeFloor={activeFloor || undefined}
             query={q}
             contentLang={contentLang}
             uiLang={uiLang}
@@ -209,20 +238,20 @@ export function ViewerPage() {
       </section>
 
       {!mapOnly ? (
-        <aside className="pane">
+        <aside className="pane" id="msf-list" aria-label={t(uiLang, "list_region")}>
           <div className="paneHeader">
             <div style={{ fontWeight: 900 }}>{t(uiLang, "list")}</div>
             <div className="badge">{t(uiLang, "click_for_details")}</div>
           </div>
           <div className="paneBody">
-            <div className="cards">
+            <div className="cards" role="list">
               {filtered.map(p => {
                 const c = catMap.get(p.category);
                 const showBiz = config.mode === "outdoor" && hasBusinessInfo(p as any);
                 const st = showBiz ? getOpenStatus(p as any, new Date(nowTick)) : "unknown";
                 const stIcon = !showBiz ? "" : (st === "open" ? "🟢" : st === "closed" ? "🔴" : "⏰");
                 return (
-                  <div key={p.id} className="listItem" onClick={() => setPicked(p)}>
+                  <div key={p.id} className="listItem" role="listitem" tabIndex={0} onClick={() => setPicked(p)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPicked(p); } }}>
                     <div className="name">{stIcon ? <span className="bizIcon" aria-hidden="true">{stIcon}</span> : null} {(c?.icon ?? "")} {pickPoiName(p, contentLang)}</div>
                     <div className="meta">{c ? pickCategoryLabel(c, contentLang) : p.category}</div>
                     <div className="meta">{(pickPoiDescription(p, contentLang) ?? "").slice(0, 60)}{(pickPoiDescription(p, contentLang) ?? "").length > 60 ? "…" : ""}</div>

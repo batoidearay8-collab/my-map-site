@@ -319,7 +319,33 @@ const UI_DICT: Record<string, Record<UiLang, string>> = {
   category_label: { ja: "カテゴリ", en: "Categories" },
   images_label: { ja: "画像", en: "Images" },
   floor_label: { ja: "フロア", en: "Floor" },
-  warn: { ja: "警告", en: "Warnings" }
+  warn: { ja: "警告", en: "Warnings" },
+
+  // GeoJSON
+  import_geojson: { ja: "GeoJSON読み込み", en: "Import GeoJSON" },
+  export_geojson: { ja: "GeoJSONエクスポート", en: "Export GeoJSON" },
+  geojson_imported: { ja: "GeoJSONを読み込みました（{n}件）", en: "Imported {n} places from GeoJSON" },
+  geojson_hint: { ja: "GeoJSON (.geojson) ファイルで地点データを読み込み/書き出しできます。QGIS・uMapなどと互換。", en: "Import/export place data as GeoJSON (.geojson). Compatible with QGIS, uMap, etc." },
+
+  // Loading / progress
+  loading: { ja: "読み込み中…", en: "Loading…" },
+  generating_zip: { ja: "ZIP生成中…", en: "Generating ZIP…" },
+  compressing_images: { ja: "画像を圧縮中…", en: "Compressing images…" },
+
+  // Privacy banner
+  privacy_dismiss: { ja: "閉じる", en: "Dismiss" },
+  privacy_dismissed_hint: { ja: "（プライバシー注意は「作る」画面で再表示されます）", en: "(Privacy caution will reappear in the builder)" },
+
+  // Embed / iframe
+  embed_title: { ja: "埋め込み用URL", en: "Embed URL" },
+  embed_hint: { ja: "iframeで他のページに埋め込めます。", en: "Embed this map in other pages via iframe." },
+  copy_embed_code: { ja: "埋め込みコードをコピー", en: "Copy embed code" },
+
+  // Accessibility
+  skip_to_map: { ja: "地図へスキップ", en: "Skip to map" },
+  skip_to_list: { ja: "一覧へスキップ", en: "Skip to list" },
+  map_region: { ja: "地図エリア", en: "Map area" },
+  list_region: { ja: "一覧エリア", en: "List area" }
 };
 
 export function t(lang: UiLang, key: keyof typeof UI_DICT): string {

@@ -1,29 +1,31 @@
 :root{
-  /* default (dark) */
-  --bg:#050a12;
-  --card:#0a1424;
-  --card2:#08101e;
-  --text:#eaf1ff;
-  --muted:#a7b4cc;
-  --line:#1b2a44;
-  --btn:#0c1a2f;
-  --btn2:#102646;
-  --accent:#9cc9ff; /* pale blue */
+  /* AtlasKobo dark theme — ロゴ配色（ネイビー×グリーン×ゴールド）目に優しいトーン */
+  --bg:#0d1520;
+  --card:#132035;
+  --card2:#0f1a2c;
+  --text:#ddeeff;
+  --muted:#8aabb8;
+  --line:#1e3350;
+  --btn:#132035;
+  --btn2:#1a2e48;
+  --accent:#4db87a;
+  --accent2:#c9a84c;
 
-  --input-bg:#060d18;
+  --input-bg:#0d1a2a;
 }
 
 :root[data-theme="light"]{
-  /* light theme keeps the same "black + pale blue" identity, just brighter */
-  --bg:#eef6ff;
+  /* AtlasKobo light theme — やわらかいクリーム×ネイビー */
+  --bg:#f4f8f2;
   --card:#ffffff;
-  --card2:#f6fbff;
-  --text:#061327;
-  --muted:#30435f;
-  --line:#cfe0f6;
-  --btn:#eef6ff;
-  --btn2:#e0efff;
-  --accent:#2f74ff;
+  --card2:#edf5eb;
+  --text:#0d2235;
+  --muted:#3d6055;
+  --line:#c4dbc8;
+  --btn:#edf5eb;
+  --btn2:#d8eedd;
+  --accent:#2e8b57;
+  --accent2:#a07c2a;
 
   --input-bg:#ffffff;
 }
@@ -598,4 +600,140 @@ textarea{
 }
 .leaflet-popup-content .btn.primary:hover{
   background: color-mix(in srgb, var(--accent) 85%, #ffffff 15%);
+}
+
+/* ── Marker clustering ── */
+.msf-cluster-icon{background:transparent !important;border:none !important}
+.msf-cluster{
+  display:flex;align-items:center;justify-content:center;
+  border-radius:50%;
+  background:color-mix(in srgb, var(--accent) 85%, var(--bg));
+  border:3px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow:0 2px 8px rgba(0,0,0,0.25);
+  font-weight:900;font-size:13px;color:#fff;
+  transition:transform .15s;
+}
+.msf-cluster:hover{transform:scale(1.15)}
+
+/* ── Loading overlay ── */
+.msf-loading{
+  position:fixed;inset:0;z-index:9999;
+  display:flex;align-items:center;justify-content:center;
+  background:color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter:blur(4px);
+}
+.msf-spinner{
+  width:36px;height:36px;
+  border:3px solid var(--line);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:msf-spin .7s linear infinite;
+}
+@keyframes msf-spin{to{transform:rotate(360deg)}}
+.msf-loading-text{
+  margin-top:12px;
+  color:var(--muted);font-size:13px;
+}
+
+/* ── Improved list items (viewer) ── */
+.listItem{
+  display:flex;flex-direction:column;gap:2px;
+  padding:12px 14px;
+  border-bottom:1px solid var(--line);
+  cursor:pointer;
+  transition:background .12s;
+  border-left:3px solid transparent;
+}
+.listItem:hover{
+  background:color-mix(in srgb, var(--accent) 6%, var(--card));
+  border-left-color:var(--accent);
+}
+.listItem .name{font-weight:800;font-size:14px}
+.listItem .meta{color:var(--muted);font-size:12px;line-height:1.5}
+.listItem .bizIcon{margin-right:4px}
+.listItem.active{
+  background:color-mix(in srgb, var(--accent) 10%, var(--card));
+  border-left-color:var(--accent);
+}
+
+/* ── Privacy banner (dismissible) ── */
+.privacyBanner{
+  padding:10px 12px;
+  transition:max-height .3s ease, opacity .3s ease, padding .3s ease;
+  max-height:200px;overflow:hidden;opacity:1;
+}
+.privacyBanner.dismissed{
+  max-height:0;opacity:0;padding:0 12px;
+  pointer-events:none;
+}
+.privacyBanner .dismissBtn{
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  font-size:18px;padding:0 4px;line-height:1;
+}
+.privacyBanner .dismissBtn:hover{color:var(--text)}
+
+/* ── Responsive: builder on mobile ── */
+@media(max-width:640px){
+  .topbar{flex-wrap:wrap;padding:8px 10px;gap:8px}
+  .controls{justify-content:flex-end;width:100%}
+  .grid2{grid-template-columns:1fr !important;gap:10px}
+  .paneHeader{flex-direction:column;align-items:stretch;gap:8px}
+  .paneHeader .row{flex-wrap:wrap}
+  .thumbGrid{grid-template-columns:1fr !important}
+  .modalBackdrop .modal{max-width:100vw;margin:0;border-radius:14px 14px 0 0;max-height:85vh}
+}
+
+/* ── Accessible focus ring ── */
+:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:2px;
+}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+}
+
+/* ── ARIA-hidden elements ── */
+[aria-hidden="true"]{pointer-events:none}
+
+/* ── Skip links (a11y) ── */
+.skipLinks{position:absolute;top:-100px;left:0;z-index:9999}
+.skipLink{
+  position:absolute;top:0;left:0;
+  background:var(--accent);color:#000;
+  padding:8px 16px;font-weight:900;font-size:13px;
+  border-radius:0 0 8px 0;
+  text-decoration:none;
+  transform:translateY(-100%);
+  transition:transform .15s;
+}
+.skipLink:focus{
+  transform:translateY(100px);
+}
+
+/* ── Floor selector (multi-floor indoor) ── */
+.msf-floorSelector{
+  display:flex;gap:4px;
+  padding:6px 8px;
+  background:color-mix(in srgb, var(--card) 90%, transparent);
+  border-radius:12px;
+  border:1px solid var(--line);
+  backdrop-filter:blur(6px);
+  z-index:500;
+}
+.msf-floorBtn{
+  padding:6px 14px;
+  border-radius:8px;
+  border:1px solid var(--line);
+  background:var(--btn);
+  color:var(--text);
+  font-size:12px;font-weight:700;
+  cursor:pointer;
+  transition:all .12s;
+}
+.msf-floorBtn:hover{background:var(--btn2)}
+.msf-floorBtn.active{
+  background:var(--accent);
+  color:#000;
+  border-color:var(--accent);
 }

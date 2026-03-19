@@ -10,7 +10,7 @@ import { z } from "zod";
 export const ConfigSchema = z.object({
   title: z.string().min(1),
   subtitle: z.string().default(""),
-  template: z.enum(["event", "tourism", "learning"]),
+  template: z.enum(["event", "tourism", "learning", "live", "convenience", "festival", "school_festival", "disaster", "outdoor_activity"]),
   mode: z.enum(["outdoor", "indoor"]),
 
   /** Optional translated titles/subtitles for content language. */
@@ -30,6 +30,12 @@ export const ConfigSchema = z.object({
   /** Preferred theme for the published site (viewer can still override). */
   theme: z.enum(["dark", "light", "system"]).optional().default("dark"),
 
+  /** Recommended spots configuration (template-driven). */
+  reco: z.object({
+    needs: z.array(z.string()).default([]),
+    rules: z.record(z.any()).default({})
+  }).optional().default({ needs: [], rules: {} }),
+
   privacy: z.object({
     stripImageMetadata: z.boolean().default(true),
     roundOutdoorLatLngDecimals: z.number().int().min(0).max(7).default(5),
@@ -42,15 +48,29 @@ export const ConfigSchema = z.object({
   }),
 
   indoor: z.object({
-    imageUrl: z.string(),          // e.g. "/assets/floor.png"
+    imageUrl: z.string(),          // e.g. "/assets/floor.png" — default/first floor
     imageWidthPx: z.number().int().positive(),
     imageHeightPx: z.number().int().positive(),
     minZoom: z.number().int().optional(),
-    maxZoom: z.number().int().optional()
+    maxZoom: z.number().int().optional(),
+
+    /** Multi-floor support.
+     *  When floors[] is present, each entry overrides imageUrl/width/height for that floor.
+     *  POI.floor matches FloorDef.id.
+     *  If floors[] is absent or empty, the single-floor legacy behaviour is used. */
+    floors: z.array(z.object({
+      id: z.string().min(1),
+      label: z.string().default(""),
+      labelI18n: z.record(z.string()).optional().default({}),
+      imageUrl: z.string(),
+      imageWidthPx: z.number().int().positive(),
+      imageHeightPx: z.number().int().positive(),
+    })).optional().default([])
   })
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
+export type FloorDef = AppConfig["indoor"]["floors"][number];
 
 // POI supports outdoor (lat,lng) OR indoor (x,y normalized)
 export const PoiSchema = z.object({
@@ -72,7 +92,10 @@ export const PoiSchema = z.object({
   lat: z.number().optional(),
   lng: z.number().optional(),
   x: z.number().optional(),
-  y: z.number().optional()
+  y: z.number().optional(),
+
+  /** Floor ID (for multi-floor indoor maps). Empty = default/first floor. */
+  floor: z.string().optional().default("")
 });
 
 export type Poi = z.infer<typeof PoiSchema>;

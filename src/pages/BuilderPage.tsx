@@ -4,7 +4,7 @@ import * as L from "leaflet";
 import JSZip from "jszip";
 import { z } from "zod";
 import { useAppStore } from "../state/store";
-import { ConfigSchema, PoiSchema, CategorySchema, type Poi, type Category } from "../lib/schema";
+import { ConfigSchema, PoiSchema, CategorySchema, type AppConfig, type Poi, type Category } from "../lib/schema";
 import { parseCategoriesFromCsv, parsePoisFromCsv, exampleCategoriesCsv, examplePoisCsv } from "../lib/csv";
 import { validateAll } from "../lib/validation";
 import { DropZone } from "../components/DropZone";
@@ -13,6 +13,7 @@ import { DetailsModal } from "../components/DetailsModal";
 import { QrModal } from "../components/QrModal";
 import { compressImage, guessImagePath } from "../lib/image";
 import { exportContentZip, exportSiteZip, downloadBlob, type ThemePreset } from "../lib/export";
+import { poisToGeoJson, geoJsonToPois, geoJsonToString } from "../lib/geojson";
 import { pickPoiName, pickCategoryLabel } from "../lib/contentText";
 import { t, langLabel, type UiLang } from "../lib/i18n";
 import { publicUrl } from "../lib/publicUrl";
@@ -68,7 +69,8 @@ function poisToCsv(pois: Poi[], cfgSupportedLangs: string[], defaultLang: string
     "y",
     "url",
     "hours",
-    "closed"
+    "closed",
+    "floor"
   ];
   const rows = pois.map(p => {
     const cols: string[] = [];
@@ -86,6 +88,7 @@ function poisToCsv(pois: Poi[], cfgSupportedLangs: string[], defaultLang: string
     cols.push(p.url ?? "");
     cols.push((p as any).hours ?? "");
     cols.push((p as any).closed ?? "");
+    cols.push(p.floor ?? "");
     return cols.map(csvEscape).join(",");
   });
   return [headers.join(","), ...rows].join("\n");
@@ -268,7 +271,7 @@ const onUndo = useCallback(() => {
     const info = TEMPLATE_PREVIEWS[tmpl];
     if (!info) return;
     const needs = info.needs;
-    setBuilderConfig({ ...cfg, template: tmpl, reco: { needs, rules: ((cfg as any).reco?.rules ?? {}) } } as any);
+    setBuilderConfig({ ...cfg, template: tmpl as AppConfig["template"], reco: { needs, rules: (cfg.reco?.rules ?? {}) } });
   };
 
   // Keep step in sync when switching between normal / import flow.
@@ -380,6 +383,7 @@ const onUndo = useCallback(() => {
   const [importMsg, setImportMsg] = useState<string>("");
   // Publish (step 4): color template for the full site zip
   const [publishTheme, setPublishTheme] = useState<ThemePreset>("blue");
+  const [exportLoading, setExportLoading] = useState<string>(""); // "" = idle, else = loading message
 
   // Apply selected publish color template as a live preview (affects Viewer as well).
   useEffect(() => {
@@ -769,8 +773,8 @@ const onUndo = useCallback(() => {
       let x = clamp01(0.5 + s * 0.06 * (1 + (n % 3)));
       let y = clamp01(0.5 - s * 0.05 * (1 + ((n + 1) % 3)));
 
-      let lat = (cfg.outdoor?.centerLat ?? 35.681236) + s * 0.0002;
-      let lng = (cfg.outdoor?.centerLng ?? 139.767125) + s * 0.0002;
+      let lat = (cfg.outdoor?.center?.[0] ?? 35.681236) + s * 0.0002;
+      let lng = (cfg.outdoor?.center?.[1] ?? 139.767125) + s * 0.0002;
 
       if (cfg.mode === "indoor") {
         const w = cfg.indoor.imageWidthPx;
@@ -865,7 +869,7 @@ const onUndo = useCallback(() => {
     const q = query.trim().toLowerCase();
     return builderPois.filter(p => {
       if (activeCategory && p.category !== activeCategory) return false;
-      const name = pickPoiName(p, cfg ?? ({} as any), effectiveContentLang).toLowerCase();
+      const name = pickPoiName(p, effectiveContentLang).toLowerCase();
       if (!q) return true;
       return name.includes(q) || (p.id ?? "").toLowerCase().includes(q);
     });
@@ -1203,18 +1207,18 @@ const onUndo = useCallback(() => {
                 {uiLang === "ja" ? "おすすめカテゴリ（カンマ区切り）" : "Recommended categories (comma-separated)"}
                 <input
                   placeholder={uiLang === "ja" ? "例: お土産, 駅, 飯屋" : "e.g. souvenir, station, restaurant"}
-                  value={((cfg as any).reco?.needs ?? []).join(", ")}
+                  value={(cfg.reco?.needs ?? []).join(", ")}
                   onChange={(e) => {
                     const raw = e.target.value;
                     const needs = raw.split(/[,、，]/).map((s: string) => s.trim()).filter(Boolean);
-                    setBuilderConfig({ ...cfg, reco: { needs, rules: ((cfg as any).reco?.rules ?? {}) } } as any);
+                    setBuilderConfig({ ...cfg, reco: { needs, rules: (cfg.reco?.rules ?? {}) } });
                   }}
                 />
               </label>
-              {((cfg as any).reco?.needs ?? []).length > 0 ? (
+              {(cfg.reco?.needs ?? []).length > 0 ? (
                 <div className="hint" style={{ marginTop: 8 }}>
                   {uiLang === "ja" ? "設定済み: " : "Set: "}
-                  {((cfg as any).reco?.needs ?? []).map((n: string) => (
+                  {(cfg.reco?.needs ?? []).map((n: string) => (
                     <span key={n} className="badge" style={{ marginRight: 4 }}>{n}</span>
                   ))}
                 </div>
@@ -1250,7 +1254,7 @@ const onUndo = useCallback(() => {
                         <option value="">{t(uiLang, "all")}</option>
                         {builderCategories.map(c => (
                           <option key={c.category} value={c.category}>
-                            {(c.icon ? `${c.icon} ` : "") + pickCategoryLabel(c, effectiveContentLang, defaultLang)}
+                            {(c.icon ? `${c.icon} ` : "") + pickCategoryLabel(c, effectiveContentLang)}
                           </option>
                         ))}
                       </select>
@@ -1266,7 +1270,7 @@ const onUndo = useCallback(() => {
                           onClick={() => setSelectedPoiId(p.id)}
                           type="button"
                         >
-                          <div style={{ fontWeight: 800 }}>{pickPoiName(p, cfg, effectiveContentLang)}</div>
+                          <div style={{ fontWeight: 800 }}>{pickPoiName(p, effectiveContentLang)}</div>
                           <div className="hint">{p.id}</div>
                         </button>
                       ))}
@@ -1305,7 +1309,7 @@ const onUndo = useCallback(() => {
                           <select value={selectedPoi.category} onChange={(e) => updatePoi(selectedPoi.id, { category: e.target.value })}>
                             {ensureDefaultCategory(uiLang, builderCategories).map(c => (
                               <option key={c.category} value={c.category}>
-                                {(c.icon ? `${c.icon} ` : "") + pickCategoryLabel(c, effectiveContentLang, defaultLang)}
+                                {(c.icon ? `${c.icon} ` : "") + pickCategoryLabel(c, effectiveContentLang)}
                               </option>
                             ))}
                           </select>
@@ -1552,6 +1556,59 @@ const onUndo = useCallback(() => {
               )}
             </div>
 
+            {/* GeoJSON import/export (outdoor mode) */}
+            {cfg.mode === "outdoor" ? (
+              <div className="card">
+                <div style={{ fontWeight: 900, marginBottom: 4 }}>{uiLang === "ja" ? "GeoJSON 読み込み / 書き出し" : "GeoJSON import / export"}</div>
+                <div className="hint" style={{ marginBottom: 10 }}>{t(uiLang, "geojson_hint")}</div>
+                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                  <label className="btn" style={{ cursor: "pointer" }}>
+                    {t(uiLang, "import_geojson")}
+                    <input
+                      type="file"
+                      accept=".geojson,.json"
+                      style={{ display: "none" }}
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        try {
+                          const text = await f.text();
+                          const geojson = JSON.parse(text);
+                          const imported = geoJsonToPois(geojson);
+                          if (!imported.length) {
+                            alert(uiLang === "ja" ? "地点が見つかりませんでした。" : "No places found in the file.");
+                            return;
+                          }
+                          const merged = [...imported, ...builderPois];
+                          const cats = ensureDefaultCategory(uiLang, builderCategories);
+                          setBuilderData(merged, cats);
+                          setPoisCsv(poisToCsv(merged, supportedLangs, defaultLang));
+                          alert(
+                            (uiLang === "ja" ? `${imported.length}件の地点を読み込みました。` : `Imported ${imported.length} places.`)
+                          );
+                        } catch (err: any) {
+                          alert(uiLang === "ja" ? `読み込みエラー: ${err.message}` : `Import error: ${err.message}`);
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      const geojson = poisToGeoJson(builderPois, builderCategories);
+                      const str = geoJsonToString(geojson);
+                      const blob = new Blob([str], { type: "application/geo+json" });
+                      downloadBlob(blob, "pois.geojson");
+                    }}
+                    disabled={!builderPois.length}
+                  >
+                    {t(uiLang, "export_geojson")}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             {/* Assets */}
             <div className="card">
               <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "assets_title")}</div>
@@ -1570,7 +1627,7 @@ const onUndo = useCallback(() => {
                     />
                   </div>
                   <DropZone
-                    label={t(uiLang, "assets_floor_drop")}
+                    title={t(uiLang, "assets_floor_drop")}
                     accept="image/*"
                     onFiles={async (files) => {
                       const f = files[0];
@@ -1608,7 +1665,7 @@ const onUndo = useCallback(() => {
               <div className="card" style={{ marginTop: 10 }}>
                 <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "assets_images_title")}</div>
                 <DropZone
-                  label={t(uiLang, "assets_images_drop")}
+                  title={t(uiLang, "assets_images_drop")}
                   accept="image/*"
                   multiple
                   onFiles={async (files) => {
@@ -1698,7 +1755,7 @@ const onUndo = useCallback(() => {
                       {uiLang === "ja" ? "移動する地点" : "Move place"}
                       <select value={selectedPoiId} onChange={(e) => setSelectedPoiId(e.target.value)}>
                         {builderPois.map(p => (
-                          <option key={p.id} value={p.id}>{pickPoiName(p, cfg, effectiveContentLang)}</option>
+                          <option key={p.id} value={p.id}>{pickPoiName(p, effectiveContentLang)}</option>
                         ))}
                       </select>
                     </label>
@@ -1811,16 +1868,22 @@ const onUndo = useCallback(() => {
               <div className="row" style={{ gap: 10, marginTop: 14, flexWrap: "wrap", justifyContent: "flex-start" }}>
                 <button
                   className="btn primary"
+                  disabled={!!exportLoading}
                   onClick={async () => {
-                    const blob = await exportSiteZip({
-                      config: cfg,
-                      pois: builderPois,
-                      categories: builderCategories,
-                      floorFile: builderAssets.floorFile,
-                      images: builderAssets.images,
-                      themePreset: publishTheme,
-                    });
-                    downloadBlob(blob, "site.zip");
+                    setExportLoading(t(uiLang, "generating_zip"));
+                    try {
+                      const blob = await exportSiteZip({
+                        config: cfg,
+                        pois: builderPois,
+                        categories: builderCategories,
+                        floorFile: builderAssets.floorFile,
+                        images: builderAssets.images,
+                        themePreset: publishTheme,
+                      });
+                      downloadBlob(blob, "site.zip");
+                    } finally {
+                      setExportLoading("");
+                    }
                   }}
                 >
                   {t(uiLang, "download_site_zip")}
@@ -1833,19 +1896,59 @@ const onUndo = useCallback(() => {
               <div className="row" style={{ gap: 10, marginTop: 10, flexWrap: "wrap", justifyContent: "flex-start" }}>
                 <button
                   className="btn"
+                  disabled={!!exportLoading}
                   onClick={async () => {
-                    const blob = await exportContentZip({
-                      config: cfg,
-                      pois: builderPois,
-                      categories: builderCategories,
-                      floorFile: builderAssets.floorFile,
-                      images: builderAssets.images,
-                    });
-                    downloadBlob(blob, "content-pack.zip");
+                    setExportLoading(t(uiLang, "generating_zip"));
+                    try {
+                      const blob = await exportContentZip({
+                        config: cfg,
+                        pois: builderPois,
+                        categories: builderCategories,
+                        floorFile: builderAssets.floorFile,
+                        images: builderAssets.images,
+                      });
+                      downloadBlob(blob, "content-pack.zip");
+                    } finally {
+                      setExportLoading("");
+                    }
                   }}
                 >
                   {t(uiLang, "download_content_pack")}
                 </button>
+              </div>
+
+              {exportLoading ? (
+                <div className="row" style={{ gap: 10, marginTop: 12, alignItems: "center" }}>
+                  <div className="msf-spinner" style={{ width: 20, height: 20 }} />
+                  <span className="hint">{exportLoading}</span>
+                </div>
+              ) : null}
+
+              {/* Embed code helper */}
+              <div style={{ marginTop: 16, padding: "12px 14px", background: "var(--card2)", borderRadius: 12, border: "1px solid var(--line)" }}>
+                <div style={{ fontWeight: 900, marginBottom: 4 }}>{t(uiLang, "embed_title")}</div>
+                <div className="hint" style={{ marginBottom: 8 }}>{t(uiLang, "embed_hint")}</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <code style={{
+                    flex: 1, fontSize: 11, padding: "6px 10px",
+                    background: "var(--input-bg)", borderRadius: 8,
+                    border: "1px solid var(--line)", color: "var(--muted)",
+                    overflow: "auto", whiteSpace: "nowrap",
+                  }}>
+                    {`<iframe src="YOUR_URL/#/" width="100%" height="600" frameborder="0" allow="geolocation"></iframe>`}
+                  </code>
+                  <button
+                    className="btn soft"
+                    onClick={() => {
+                      const code = `<iframe src="YOUR_URL/#/" width="100%" height="600" frameborder="0" allow="geolocation"></iframe>`;
+                      navigator.clipboard?.writeText(code).then(() => {
+                        alert(t(uiLang, "copied"));
+                      }).catch(() => {});
+                    }}
+                  >
+                    {t(uiLang, "copy_embed_code")}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1855,11 +1958,12 @@ const onUndo = useCallback(() => {
 
       {picked ? (
         <DetailsModal
-          config={cfg}
           poi={picked}
           category={builderCategories.find(c => c.category === picked.category)}
           contentLang={effectiveContentLang}
           uiLang={uiLang}
+          mode={cfg.mode}
+          now={Date.now()}
           onClose={() => setPicked(null)}
         />
       ) : null}
@@ -1867,7 +1971,7 @@ const onUndo = useCallback(() => {
       {qrOpen ? (
         <QrModal
           onClose={() => setQrOpen(false)}
-          title={uiLang === "ja" ? "プレビュー" : "Preview"}
+          uiLang={uiLang}
           url={location.href.replace(/#\/builder.*/, "#/" )}
         />
       ) : null}
