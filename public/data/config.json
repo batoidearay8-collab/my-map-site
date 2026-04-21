@@ -1,12 +1,8 @@
 {
   "title": "Map Site",
   "subtitle": "",
-  "template": "tourism",
+  "template": "event",
   "mode": "outdoor",
-  "reco": {
-    "needs": ["お土産", "駅", "飯屋"],
-    "rules": {}
-  },
   "privacy": {
     "stripImageMetadata": true,
     "roundOutdoorLatLngDecimals": 5,
