@@ -945,7 +945,7 @@ const onUndo = useCallback(() => {
               <div className="cards">
                 <div className="card">
                   <div className="sectionTitle">{t(uiLang, "import_title")}</div>
-                  <div className="hint" className="mb12">{t(uiLang, "import_hint")}</div>
+                  <div className="hint mb12">{t(uiLang, "import_hint")}</div>
                   <DropZone
                     title={t(uiLang, "import_choose_zip")}
                     accept=".zip"
@@ -960,9 +960,9 @@ const onUndo = useCallback(() => {
                     }}
                     buttonLabel={t(uiLang, "import_choose_zip")}
                   />
-                  {importedName ? <div className="hint" className="mt8">{importedName}</div> : null}
-                  {importState === "loading" ? <div className="hint" className="mt8">{uiLang === "ja" ? "読み込み中…" : "Importing…"}</div> : null}
-                  {importState === "done" ? <div className="hint" className="mt8">{t(uiLang, "import_loaded")}</div> : null}
+                  {importedName ? <div className="hint mt8">{importedName}</div> : null}
+                  {importState === "loading" ? <div className="hint mt8">{uiLang === "ja" ? "読み込み中…" : "Importing…"}</div> : null}
+                  {importState === "done" ? <div className="hint mt8">{t(uiLang, "import_loaded")}</div> : null}
                   {importState === "error" && importError ? <div className="hint" style={{ marginTop: 8, color: "#f66" }}>{importError}</div> : null}
                 </div>
               </div>
@@ -1080,7 +1080,7 @@ const onUndo = useCallback(() => {
           <div className="cards">
             <div className="card">
               <div className="sectionTitle">{t(uiLang, "import_title")}</div>
-              <div className="hint" className="mb12">{t(uiLang, "import_hint")}</div>
+              <div className="hint mb12">{t(uiLang, "import_hint")}</div>
               <DropZone
                 title={t(uiLang, "import_choose_zip")}
                 accept=".zip"
@@ -1095,9 +1095,9 @@ const onUndo = useCallback(() => {
                 }}
                 buttonLabel={t(uiLang, "import_choose_zip")}
               />
-              {importedName ? <div className="hint" className="mt8">{importedName}</div> : null}
-              {importState === "loading" ? <div className="hint" className="mt8">{uiLang === "ja" ? "読み込み中…" : "Importing…"}</div> : null}
-              {importState === "done" ? <div className="hint" className="mt8">{t(uiLang, "import_loaded")}</div> : null}
+              {importedName ? <div className="hint mt8">{importedName}</div> : null}
+              {importState === "loading" ? <div className="hint mt8">{uiLang === "ja" ? "読み込み中…" : "Importing…"}</div> : null}
+              {importState === "done" ? <div className="hint mt8">{t(uiLang, "import_loaded")}</div> : null}
               {importState === "error" && importError ? <div className="hint" style={{ marginTop: 8, color: "#f66" }}>{importError}</div> : null}
 
               <div className="row" style={{ justifyContent: "flex-end", marginTop: 12 }}>
@@ -1168,7 +1168,7 @@ const onUndo = useCallback(() => {
                 </label>
 
                 {cfg.mode === "indoor" ? (
-                  <div className="hint" className="fullSpan">
+                  <div className="hint fullSpan">
                     {uiLang === "ja"
                       ? "屋内画像のサイズ（横幅/縦幅）は、フロア画像をアップロードしたときに自動で読み取ります。"
                       : "Indoor image size (width/height) will be detected automatically when you upload the floor image."}
@@ -1194,7 +1194,7 @@ const onUndo = useCallback(() => {
               <div className="sectionTitleSm">
                 {uiLang === "ja" ? "用途テンプレートを選ぶ" : "Choose a purpose template"}
               </div>
-              <div className="hint" className="mb12">
+              <div className="hint mb12">
                 {uiLang === "ja"
                   ? "テンプレートを選ぶと、おすすめ表示の初期設定が自動で入ります。あとから変更できます。"
                   : "Selecting a template auto-fills the recommended spots settings. You can change them later."}
@@ -1252,7 +1252,7 @@ const onUndo = useCallback(() => {
               <div className="sectionTitleSm">
                 {uiLang === "ja" ? "おすすめ表示の設定" : "Recommended Spots Settings"}
               </div>
-              <div className="hint" className="mb10">
+              <div className="hint mb10">
                 {uiLang === "ja"
                   ? "公開サイトの上部に「おすすめ」セクションを表示します。カテゴリ名をカンマ区切りで入力してください。カテゴリ名と一致するスポットが自動的に表示されます。"
                   : "Shows a 'Recommended' section at the top of the published site. Enter category names separated by commas."}
@@ -1270,7 +1270,7 @@ const onUndo = useCallback(() => {
                 />
               </label>
               {(cfg.reco?.needs ?? []).length > 0 ? (
-                <div className="hint" className="mt8">
+                <div className="hint mt8">
                   {uiLang === "ja" ? "設定済み: " : "Set: "}
                   {(cfg.reco?.needs ?? []).map((n: string) => (
                     <span key={n} className="badge" style={{ marginRight: 4 }}>{n}</span>
@@ -1298,7 +1298,7 @@ const onUndo = useCallback(() => {
 
               {editorMode === "easy" ? (
                 <>
-                <div className="grid2" className="mt10">
+                <div className="grid2 mt10">
                   {/* POI list + form */}
                   <div className="card" style={{ padding: 12 }}>
                     <div style={{ fontWeight: 900, marginBottom: 8 }}>{t(uiLang, "pois_easy_title")}</div>
@@ -1341,7 +1341,7 @@ const onUndo = useCallback(() => {
                     </div>
 
                     {selectedPoi ? (
-                      <div className="grid2" className="mt10">
+                      <div className="grid2 mt10">
                         <label>
                           {t(uiLang, "field_id")}
                           <input
@@ -1467,7 +1467,7 @@ const onUndo = useCallback(() => {
 
 
                         {cfg.mode === "outdoor" ? (
-                          <div className="hint" className="fullSpan">
+                          <div className="hint fullSpan">
                             {uiLang === "ja"
                               ? "屋外の位置（緯度・経度）は「3.できあがり確認」で地図をクリックして調整できます。"
                               : "You can adjust outdoor position (lat/lng) by clicking the map in Step 3 (Preview)."}
@@ -1507,7 +1507,7 @@ const onUndo = useCallback(() => {
                                 </select>
                               </label>
                             ) : null}
-                            <div className="hint" className="fullSpan">
+                            <div className="hint fullSpan">
                               {uiLang === "ja"
                                 ? "屋内の位置は「できあがり確認」で地図をクリックして調整できます。ここでは数値（0〜1）でも調整できます。"
                                 : "You can adjust indoor position by clicking the map in Preview. You can also edit numbers here (0–1)."}
@@ -1516,7 +1516,7 @@ const onUndo = useCallback(() => {
                         )}
                       </div>
                     ) : (
-                      <div className="hint" className="mt10">{t(uiLang, "select_item_hint")}</div>
+                      <div className="hint mt10">{t(uiLang, "select_item_hint")}</div>
                     )}
                   </div>
 
@@ -1530,7 +1530,7 @@ const onUndo = useCallback(() => {
                       <button className="btn" onClick={addCategory}>{t(uiLang, "add_category")}</button>
                     </div>
 
-                    <div className="list" className="mt10">
+                    <div className="list mt10">
                       {builderCategories.map(c => {
                         // Category.label is the *default language* label. For beginners, we always show explicit
                         // fields for ja/en, regardless of which is default.
@@ -1598,7 +1598,7 @@ const onUndo = useCallback(() => {
               ) : (
                 <div className="mt10">
                   <div className="hint">{uiLang === "ja" ? "Ctrl/⌘+Enter: CSVに反映 / Ctrl/⌘+Shift+Enter: プレビュー更新" : "Ctrl/⌘+Enter: Write to CSV / Ctrl/⌘+Shift+Enter: Update preview"}</div>
-                  <div className="grid2" className="mt10">
+                  <div className="grid2 mt10">
                     <div>
                       <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
                         <div className="sectionTitleOnly">{t(uiLang, "pois_csv")}</div>
@@ -1629,7 +1629,7 @@ const onUndo = useCallback(() => {
             {cfg.mode === "outdoor" ? (
               <div className="card">
                 <div className="sectionTitleSm">{uiLang === "ja" ? "GeoJSON 読み込み / 書き出し" : "GeoJSON import / export"}</div>
-                <div className="hint" className="mb10">{t(uiLang, "geojson_hint")}</div>
+                <div className="hint mb10">{t(uiLang, "geojson_hint")}</div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                   <label className="btn" style={{ cursor: "pointer" }}>
                     {t(uiLang, "import_geojson")}
@@ -1683,9 +1683,9 @@ const onUndo = useCallback(() => {
               <div className="sectionTitle">{t(uiLang, "assets_title")}</div>
 
               {cfg.mode === "indoor" ? (
-                <div className="card" className="mt8">
+                <div className="card mt8">
                   <div className="sectionTitleSm">{t(uiLang, "floor_manage_title")}</div>
-                  <div className="hint" className="mb10">{t(uiLang, "floor_manage_hint")}</div>
+                  <div className="hint mb10">{t(uiLang, "floor_manage_hint")}</div>
 
                   {/* Default / single floor image (always shown) */}
                   <div style={{ padding: "10px 12px", background: "var(--card2)", borderRadius: 12, border: "1px solid var(--line)", marginBottom: 10 }}>
@@ -1732,7 +1732,7 @@ const onUndo = useCallback(() => {
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, marginTop: 14 }}>
                     {uiLang === "ja" ? "追加フロア（複数階対応）" : "Additional floors (multi-floor)"}
                   </div>
-                  <div className="hint" className="mb8">{t(uiLang, "floor_single_hint")}</div>
+                  <div className="hint mb8">{t(uiLang, "floor_single_hint")}</div>
 
                   {(cfg.indoor.floors ?? []).map((floor, fi) => {
                     const floorFileForThis = builderAssets.floorFiles?.[floor.id];
@@ -1858,7 +1858,7 @@ const onUndo = useCallback(() => {
                 </div>
               ) : null}
 
-              <div className="card" className="mt10">
+              <div className="card mt10">
                 <div className="sectionTitle">{t(uiLang, "assets_images_title")}</div>
                 <DropZone
                   title={t(uiLang, "assets_images_drop")}
@@ -1872,7 +1872,7 @@ const onUndo = useCallback(() => {
                     }
                   }}
                 />
-                <div className="hint" className="mt8">{t(uiLang, "assets_images_hint")}</div>
+                <div className="hint mt8">{t(uiLang, "assets_images_hint")}</div>
 
                 {Object.keys(builderAssets.images ?? {}).length ? (
                   <div className="mt10">
@@ -2148,7 +2148,7 @@ const onUndo = useCallback(() => {
               {/* Embed code helper */}
               <div style={{ marginTop: 16, padding: "12px 14px", background: "var(--card2)", borderRadius: 12, border: "1px solid var(--line)" }}>
                 <div className="sectionTitleSm">{t(uiLang, "embed_title")}</div>
-                <div className="hint" className="mb8">{t(uiLang, "embed_hint")}</div>
+                <div className="hint mb8">{t(uiLang, "embed_hint")}</div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <code style={{
                     flex: 1, fontSize: 11, padding: "6px 10px",
