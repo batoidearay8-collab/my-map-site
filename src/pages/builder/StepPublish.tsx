@@ -46,7 +46,7 @@ export function StepPublish(props: BuilderContext) {
             try {
               const blob = await exportSiteZip({
                 config: cfg, pois: builderPois, categories: builderCategories,
-                floorFile: builderAssets.floorFile, images: builderAssets.images,
+                floorFile: builderAssets.floorFile, floorFiles: builderAssets.floorFiles, images: builderAssets.images,
                 themePreset: publishTheme,
               });
               downloadBlob(blob, "site.zip");
@@ -64,7 +64,7 @@ export function StepPublish(props: BuilderContext) {
             try {
               const blob = await exportContentZip({
                 config: cfg, pois: builderPois, categories: builderCategories,
-                floorFile: builderAssets.floorFile, images: builderAssets.images,
+                floorFile: builderAssets.floorFile, floorFiles: builderAssets.floorFiles, images: builderAssets.images,
               });
               downloadBlob(blob, "content-pack.zip");
             } finally { setExportLoading(""); }

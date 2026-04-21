@@ -10,6 +10,7 @@ import { validateAll } from "../lib/validation";
 import { DropZone } from "../components/DropZone";
 import { MapView } from "../components/MapView";
 import { DetailsModal } from "../components/DetailsModal";
+import { FloorSelector } from "../components/FloorSelector";
 import { QrModal } from "../components/QrModal";
 import { compressImage, guessImagePath } from "../lib/image";
 import { exportContentZip, exportSiteZip, downloadBlob, type ThemePreset } from "../lib/export";
@@ -86,8 +87,8 @@ function poisToCsv(pois: Poi[], cfgSupportedLangs: string[], defaultLang: string
     cols.push(p.x !== undefined ? String(p.x) : "");
     cols.push(p.y !== undefined ? String(p.y) : "");
     cols.push(p.url ?? "");
-    cols.push((p as any).hours ?? "");
-    cols.push((p as any).closed ?? "");
+    cols.push(p.hours ?? "");
+    cols.push(p.closed ?? "");
     cols.push(p.floor ?? "");
     return cols.map(csvEscape).join(",");
   });
@@ -112,7 +113,7 @@ function categoriesToCsv(cats: Category[], cfgSupportedLangs: string[], defaultL
     for (const l of extra) cols.push((c.labelI18n ?? {})[l] ?? "");
     cols.push(c.icon ?? "");
     cols.push(c.order !== undefined ? String(c.order) : "");
-    cols.push((c.markerType ?? "") as any);
+    cols.push(c.markerType ?? "");
     cols.push(c.markerColor ?? "");
     return cols.map(csvEscape).join(",");
   });
@@ -264,7 +265,7 @@ const onUndo = useCallback(() => {
     outdoor_activity:{ ja: "アウトドア", en: "Outdoor",       needs: ["給水所", "コンビニ", "駐車場"],    icon: "🏕️" },
   };
   const [selectedTemplate, setSelectedTemplate] = useState<string>(
-    (builderConfig as any)?.template ?? "tourism"
+    builderConfig?.template ?? "tourism"
   );
   const applyTemplate = (tmpl: string) => {
     setSelectedTemplate(tmpl);
@@ -324,17 +325,16 @@ const onUndo = useCallback(() => {
 
   const builderHash = useMemo(() => {
     if (!builderConfig) return "";
-    const cfg = builderConfig as any;
     const cfgKey = JSON.stringify({
-      mode: cfg.mode,
-      theme: cfg.theme,
-      i18n: cfg.i18n,
-      title: cfg.title,
-      subtitle: cfg.subtitle,
-      titleI18n: cfg.titleI18n,
-      subtitleI18n: cfg.subtitleI18n,
-      indoor: cfg.indoor,
-      outdoor: cfg.outdoor,
+      mode: builderConfig.mode,
+      theme: builderConfig.theme,
+      i18n: builderConfig.i18n,
+      title: builderConfig.title,
+      subtitle: builderConfig.subtitle,
+      titleI18n: builderConfig.titleI18n,
+      subtitleI18n: builderConfig.subtitleI18n,
+      indoor: builderConfig.indoor,
+      outdoor: builderConfig.outdoor,
     });
     const poisKey = JSON.stringify(builderPois);
     const catsKey = JSON.stringify(builderCategories);
@@ -403,7 +403,9 @@ const onUndo = useCallback(() => {
 
   // Local preview URLs for uploaded images (so changes are visible immediately)
   const [floorPreviewUrl, setFloorPreviewUrl] = useState<string>("");
+  const [builderActiveFloor, setBuilderActiveFloor] = useState<string>("");
   const [imagePreviewUrls, setImagePreviewUrls] = useState<Record<string, string>>({});
+  const [floorPreviewUrls, setFloorPreviewUrls] = useState<Record<string, string>>({});
 
   // indoor position picking
   const [pickPos, setPickPos] = useState(false);
@@ -416,6 +418,9 @@ const onUndo = useCallback(() => {
 
   const clearAllBuilderAssets = useCallback(() => {
     if (builderAssets.floorFile) removeBuilderAsset("floor", "");
+    for (const k of Object.keys(builderAssets.floorFiles || {})) {
+      removeBuilderAsset("floorMulti", k);
+    }
     for (const k of Object.keys(builderAssets.images)) {
       removeBuilderAsset("image", k);
     }
@@ -463,8 +468,23 @@ const onUndo = useCallback(() => {
       if (floorEntry) {
         const blob = await floorEntry.async("blob");
         const name = floorPath.split("/").pop() || "floor.png";
-        const floorFile = new File([blob], name, { type: (blob as any).type || "image/png" });
+        const floorFile = new File([blob], name, { type: blob.type || "image/png" });
         setBuilderAsset("floor", floorUrl, floorFile);
+      }
+    }
+
+    // Multi-floor images
+    if (nextCfg.mode === "indoor" && nextCfg.indoor?.floors?.length) {
+      for (const floor of nextCfg.indoor.floors) {
+        const fUrl = (floor.imageUrl || "").replace(/^\//, "");
+        if (!fUrl) continue;
+        const fEntry = zip.file(prefix + fUrl);
+        if (fEntry) {
+          const blob = await fEntry.async("blob");
+          const name = fUrl.split("/").pop() || `floor_${floor.id}.png`;
+          const file = new File([blob], name, { type: blob.type || "image/png" });
+          setBuilderAsset("floorMulti", floor.id, file);
+        }
       }
     }
 
@@ -475,7 +495,7 @@ const onUndo = useCallback(() => {
       const blob = await entry.async("blob");
       const name = p.split("/").pop() || "image";
       const key = "/" + p.slice(prefix.length);
-      const imgFile = new File([blob], name, { type: (blob as any).type || "" });
+      const imgFile = new File([blob], name, { type: blob.type || "" });
       setBuilderAsset("image", key, imgFile);
     }
 
@@ -525,8 +545,8 @@ const onUndo = useCallback(() => {
     const img = new Image();
     img.onload = () => {
       if (cancelled) return;
-      const w = (img as any).naturalWidth || img.width;
-      const h = (img as any).naturalHeight || img.height;
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
       if (!w || !h) return;
       if (cfg.indoor.imageWidthPx === w && cfg.indoor.imageHeightPx === h) return;
       setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, imageWidthPx: w, imageHeightPx: h } });
@@ -550,6 +570,22 @@ const onUndo = useCallback(() => {
       }
     };
   }, [builderAssets.images]);
+
+  // Multi-floor image preview URLs (with proper cleanup to avoid memory leaks)
+  useEffect(() => {
+    const entries = Object.entries(builderAssets.floorFiles ?? {});
+    if (!entries.length) { setFloorPreviewUrls({}); return; }
+    const next: Record<string, string> = {};
+    for (const [k, f] of entries) {
+      try { next[k] = URL.createObjectURL(f); } catch {}
+    }
+    setFloorPreviewUrls(next);
+    return () => {
+      for (const u of Object.values(next)) {
+        try { URL.revokeObjectURL(u); } catch {}
+      }
+    };
+  }, [builderAssets.floorFiles]);
 
   // Keep the preset selector in sync with current indoor image size (optional UI sugar)
 
@@ -686,12 +722,15 @@ const onUndo = useCallback(() => {
       lng,
       x,
       y,
+      // Multi-floor: assign to the currently active floor in the builder preview
+      floor: (cfg.mode === "indoor" && (cfg.indoor.floors ?? []).length >= 2 && builderActiveFloor)
+        ? builderActiveFloor : "",
     };
     const nextPois = [next, ...builderPois];
     setBuilderData(nextPois, nextCats);
     setPoisCsv(poisToCsv(nextPois, supportedLangs, defaultLang));
     setSelectedPoiId(id);
-  }, [cfg, uiLang, builderCategories, builderPois, setBuilderData, setPoisCsv, setCatsCsv, supportedLangs, defaultLang]);
+  }, [cfg, uiLang, builderCategories, builderPois, builderActiveFloor, setBuilderData, setPoisCsv, setCatsCsv, supportedLangs, defaultLang]);
 
   const deletePoi = useCallback((id: string) => {
     if (!cfg) return;
@@ -759,6 +798,18 @@ const onUndo = useCallback(() => {
   const onPreviewMapClick = useCallback((latlng: L.LatLng) => {
     if (!cfg) return;
 
+    // Resolve floor-specific dimensions for indoor mode
+    const resolveIndoorSize = () => {
+      let w = cfg.indoor.imageWidthPx;
+      let h = cfg.indoor.imageHeightPx;
+      const floors = cfg.indoor.floors ?? [];
+      if (floors.length >= 2 && builderActiveFloor) {
+        const fd = floors.find(f => f.id === builderActiveFloor);
+        if (fd) { w = fd.imageWidthPx || w; h = fd.imageHeightPx || h; }
+      }
+      return { w, h };
+    };
+
     // Add new POI by clicking the map (requested UX improvement)
     if (addOnMapClick) {
       const nextCats = ensureDefaultCategory(uiLang, builderCategories);
@@ -777,14 +828,17 @@ const onUndo = useCallback(() => {
       let lng = (cfg.outdoor?.center?.[1] ?? 139.767125) + s * 0.0002;
 
       if (cfg.mode === "indoor") {
-        const w = cfg.indoor.imageWidthPx;
-        const h = cfg.indoor.imageHeightPx;
+        const { w, h } = resolveIndoorSize();
         x = clamp01(latlng.lng / w);
         y = clamp01(latlng.lat / h);
       } else {
         lat = latlng.lat;
         lng = latlng.lng;
       }
+
+      // Assign active floor for multi-floor indoor
+      const floorVal = (cfg.mode === "indoor" && (cfg.indoor.floors ?? []).length >= 2 && builderActiveFloor)
+        ? builderActiveFloor : "";
 
       const next: Poi = PoiSchema.parse({
         id,
@@ -799,6 +853,7 @@ const onUndo = useCallback(() => {
         url: "",
         hours: "",
         closed: "",
+        floor: floorVal,
       });
 
       const nextPois = [next, ...builderPois];
@@ -815,8 +870,7 @@ const onUndo = useCallback(() => {
     if (!selectedPoiId) return;
 
     if (cfg.mode === "indoor") {
-      const w = cfg.indoor.imageWidthPx;
-      const h = cfg.indoor.imageHeightPx;
+      const { w, h } = resolveIndoorSize();
       const x = clamp01(latlng.lng / w);
       const y = clamp01(latlng.lat / h);
 
@@ -827,7 +881,7 @@ const onUndo = useCallback(() => {
 
     // Outdoor: use lat/lng
     updatePoi(selectedPoiId, { lat: round6(latlng.lat), lng: round6(latlng.lng) });
-  }, [cfg, pickPos, selectedPoiId, updatePoi, addOnMapClick, uiLang, builderCategories, builderPois, setBuilderData, setPoisCsv, setCatsCsv, supportedLangs, defaultLang]);
+  }, [cfg, pickPos, selectedPoiId, updatePoi, addOnMapClick, builderActiveFloor, uiLang, builderCategories, builderPois, setBuilderData, setPoisCsv, setCatsCsv, supportedLangs, defaultLang]);
 
   // Keyboard shortcuts: even if focus is inside textarea
   useEffect(() => {
@@ -838,7 +892,7 @@ const onUndo = useCallback(() => {
 
       // Ctrl/Cmd+Z: one-step undo (avoid interfering with native undo inside inputs)
       if ((e.key === "z" || e.key === "Z") && !e.shiftKey) {
-        const el = e.target as any;
+        const el = e.target as HTMLElement;
         const tag = (el?.tagName || "").toLowerCase();
         const isTyping = tag === "input" || tag === "textarea" || !!el?.isContentEditable;
         if (!isTyping && canUndo) {
@@ -857,7 +911,7 @@ const onUndo = useCallback(() => {
       }
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });
-    return () => window.removeEventListener("keydown", onKeyDown, { capture: true } as any);
+    return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [applyCsv, previewBuilder, canUndo, onUndo]);
 
   // When entering Step 3, default to the map tab
@@ -882,7 +936,7 @@ const onUndo = useCallback(() => {
         <main className="layout layoutSingle">
           <section className="pane">
             <div className="paneHeader">
-              <div style={{ fontWeight: 900 }}>{t(uiLang, "builder")}</div>
+              <div className="sectionTitleOnly">{t(uiLang, "builder")}</div>
               <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
                 <button className="btn primary" onClick={() => setStep(0)}>{t(uiLang, "step_import")}</button>
               </div>
@@ -890,8 +944,8 @@ const onUndo = useCallback(() => {
             <div className="paneBody">
               <div className="cards">
                 <div className="card">
-                  <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "import_title")}</div>
-                  <div className="hint" style={{ marginBottom: 12 }}>{t(uiLang, "import_hint")}</div>
+                  <div className="sectionTitle">{t(uiLang, "import_title")}</div>
+                  <div className="hint" className="mb12">{t(uiLang, "import_hint")}</div>
                   <DropZone
                     title={t(uiLang, "import_choose_zip")}
                     accept=".zip"
@@ -906,9 +960,9 @@ const onUndo = useCallback(() => {
                     }}
                     buttonLabel={t(uiLang, "import_choose_zip")}
                   />
-                  {importedName ? <div className="hint" style={{ marginTop: 8 }}>{importedName}</div> : null}
-                  {importState === "loading" ? <div className="hint" style={{ marginTop: 8 }}>{uiLang === "ja" ? "読み込み中…" : "Importing…"}</div> : null}
-                  {importState === "done" ? <div className="hint" style={{ marginTop: 8 }}>{t(uiLang, "import_loaded")}</div> : null}
+                  {importedName ? <div className="hint" className="mt8">{importedName}</div> : null}
+                  {importState === "loading" ? <div className="hint" className="mt8">{uiLang === "ja" ? "読み込み中…" : "Importing…"}</div> : null}
+                  {importState === "done" ? <div className="hint" className="mt8">{t(uiLang, "import_loaded")}</div> : null}
                   {importState === "error" && importError ? <div className="hint" style={{ marginTop: 8, color: "#f66" }}>{importError}</div> : null}
                 </div>
               </div>
@@ -982,7 +1036,7 @@ const onUndo = useCallback(() => {
                 ))}
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <button className="btn soft" onClick={dismissTutorial} style={{ fontSize: 13 }}>
+                <button className="btn soft" onClick={dismissTutorial} className="fs13">
                   {uiLang === "ja" ? "スキップ" : "Skip"}
                 </button>
                 <button className="btn primary" onClick={() => {
@@ -1001,7 +1055,7 @@ const onUndo = useCallback(() => {
 
       <section className="pane">
         <div className="paneHeader">
-          <div style={{ fontWeight: 900 }}>{t(uiLang, "builder")}</div>
+          <div className="sectionTitleOnly">{t(uiLang, "builder")}</div>
 
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
             {importFlow ? (
@@ -1025,8 +1079,8 @@ const onUndo = useCallback(() => {
         {importFlow && step === 0 ? (
           <div className="cards">
             <div className="card">
-              <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "import_title")}</div>
-              <div className="hint" style={{ marginBottom: 12 }}>{t(uiLang, "import_hint")}</div>
+              <div className="sectionTitle">{t(uiLang, "import_title")}</div>
+              <div className="hint" className="mb12">{t(uiLang, "import_hint")}</div>
               <DropZone
                 title={t(uiLang, "import_choose_zip")}
                 accept=".zip"
@@ -1041,9 +1095,9 @@ const onUndo = useCallback(() => {
                 }}
                 buttonLabel={t(uiLang, "import_choose_zip")}
               />
-              {importedName ? <div className="hint" style={{ marginTop: 8 }}>{importedName}</div> : null}
-              {importState === "loading" ? <div className="hint" style={{ marginTop: 8 }}>{uiLang === "ja" ? "読み込み中…" : "Importing…"}</div> : null}
-              {importState === "done" ? <div className="hint" style={{ marginTop: 8 }}>{t(uiLang, "import_loaded")}</div> : null}
+              {importedName ? <div className="hint" className="mt8">{importedName}</div> : null}
+              {importState === "loading" ? <div className="hint" className="mt8">{uiLang === "ja" ? "読み込み中…" : "Importing…"}</div> : null}
+              {importState === "done" ? <div className="hint" className="mt8">{t(uiLang, "import_loaded")}</div> : null}
               {importState === "error" && importError ? <div className="hint" style={{ marginTop: 8, color: "#f66" }}>{importError}</div> : null}
 
               <div className="row" style={{ justifyContent: "flex-end", marginTop: 12 }}>
@@ -1059,14 +1113,14 @@ const onUndo = useCallback(() => {
         {step === 1 ? (
           <div className="cards">
             <div className="card">
-              <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "template_title")}</div>
+              <div className="sectionTitle">{t(uiLang, "template_title")}</div>
               <div className="grid2">
                 <label>
                   {t(uiLang, "mode")}
                   <select
                     value={cfg.mode}
                     onChange={(e) => {
-                      const mode = e.target.value as any;
+                      const mode = e.target.value as AppConfig["mode"];
                       if (mode === "indoor") setBuilderConfig({ ...cfg, mode: "indoor", indoor: { ...cfg.indoor } });
                       else setBuilderConfig({ ...cfg, mode: "outdoor" });
                     }}
@@ -1114,7 +1168,7 @@ const onUndo = useCallback(() => {
                 </label>
 
                 {cfg.mode === "indoor" ? (
-                  <div className="hint" style={{ gridColumn: "1 / -1" }}>
+                  <div className="hint" className="fullSpan">
                     {uiLang === "ja"
                       ? "屋内画像のサイズ（横幅/縦幅）は、フロア画像をアップロードしたときに自動で読み取ります。"
                       : "Indoor image size (width/height) will be detected automatically when you upload the floor image."}
@@ -1131,16 +1185,16 @@ const onUndo = useCallback(() => {
             </div>
 
             <div className="card">
-              <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "template_hint_title")}</div>
+              <div className="sectionTitle">{t(uiLang, "template_hint_title")}</div>
               <div className="hint">{t(uiLang, "template_hint_body")}</div>
             </div>
 
             {/* ② テンプレートプレビューカード */}
             <div className="card">
-              <div style={{ fontWeight: 900, marginBottom: 4 }}>
+              <div className="sectionTitleSm">
                 {uiLang === "ja" ? "用途テンプレートを選ぶ" : "Choose a purpose template"}
               </div>
-              <div className="hint" style={{ marginBottom: 12 }}>
+              <div className="hint" className="mb12">
                 {uiLang === "ja"
                   ? "テンプレートを選ぶと、おすすめ表示の初期設定が自動で入ります。あとから変更できます。"
                   : "Selecting a template auto-fills the recommended spots settings. You can change them later."}
@@ -1195,10 +1249,10 @@ const onUndo = useCallback(() => {
 
             {/* ── おすすめ（reco）設定 ── */}
             <div className="card">
-              <div style={{ fontWeight: 900, marginBottom: 4 }}>
+              <div className="sectionTitleSm">
                 {uiLang === "ja" ? "おすすめ表示の設定" : "Recommended Spots Settings"}
               </div>
-              <div className="hint" style={{ marginBottom: 10 }}>
+              <div className="hint" className="mb10">
                 {uiLang === "ja"
                   ? "公開サイトの上部に「おすすめ」セクションを表示します。カテゴリ名をカンマ区切りで入力してください。カテゴリ名と一致するスポットが自動的に表示されます。"
                   : "Shows a 'Recommended' section at the top of the published site. Enter category names separated by commas."}
@@ -1216,7 +1270,7 @@ const onUndo = useCallback(() => {
                 />
               </label>
               {(cfg.reco?.needs ?? []).length > 0 ? (
-                <div className="hint" style={{ marginTop: 8 }}>
+                <div className="hint" className="mt8">
                   {uiLang === "ja" ? "設定済み: " : "Set: "}
                   {(cfg.reco?.needs ?? []).map((n: string) => (
                     <span key={n} className="badge" style={{ marginRight: 4 }}>{n}</span>
@@ -1233,7 +1287,7 @@ const onUndo = useCallback(() => {
             <div className="card">
               <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
                 <div>
-                  <div style={{ fontWeight: 900 }}>{t(uiLang, "edit_data_title")}</div>
+                  <div className="sectionTitleOnly">{t(uiLang, "edit_data_title")}</div>
                   <div className="hint">{t(uiLang, "edit_data_hint")}</div>
                 </div>
                 <div className="row" style={{ gap: 8 }}>
@@ -1244,7 +1298,7 @@ const onUndo = useCallback(() => {
 
               {editorMode === "easy" ? (
                 <>
-                <div className="grid2" style={{ marginTop: 10 }}>
+                <div className="grid2" className="mt10">
                   {/* POI list + form */}
                   <div className="card" style={{ padding: 12 }}>
                     <div style={{ fontWeight: 900, marginBottom: 8 }}>{t(uiLang, "pois_easy_title")}</div>
@@ -1280,14 +1334,14 @@ const onUndo = useCallback(() => {
 
                   <div className="card" style={{ padding: 12 }}>
                     <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ fontWeight: 900 }}>{uiLang === "ja" ? "地点の編集" : "Edit place"}</div>
+                      <div className="sectionTitleOnly">{uiLang === "ja" ? "地点の編集" : "Edit place"}</div>
                       {selectedPoi ? (
                         <button className="btn danger" onClick={() => deletePoi(selectedPoi.id)}>{t(uiLang, "delete_poi")}</button>
                       ) : null}
                     </div>
 
                     {selectedPoi ? (
-                      <div className="grid2" style={{ marginTop: 10 }}>
+                      <div className="grid2" className="mt10">
                         <label>
                           {t(uiLang, "field_id")}
                           <input
@@ -1367,7 +1421,7 @@ const onUndo = useCallback(() => {
     <label>
       {t(uiLang, "field_hours")}
       <input
-        value={(selectedPoi as any).hours ?? ""}
+        value={selectedPoi.hours ?? ""}
         onChange={(e) => updatePoi(selectedPoi.id, { hours: e.target.value })}
         placeholder={uiLang === "ja" ? "例: 10:00-18:00" : "e.g. 10:00-18:00"}
         title={uiLang === "ja"
@@ -1378,7 +1432,7 @@ const onUndo = useCallback(() => {
     <label>
       {t(uiLang, "field_closed")}
       <input
-        value={(selectedPoi as any).closed ?? ""}
+        value={selectedPoi.closed ?? ""}
         onChange={(e) => updatePoi(selectedPoi.id, { closed: e.target.value })}
         placeholder={uiLang === "ja" ? "例: 水 （なければ空欄）" : "e.g. Wed (blank if none)"}
         title={uiLang === "ja"
@@ -1413,7 +1467,7 @@ const onUndo = useCallback(() => {
 
 
                         {cfg.mode === "outdoor" ? (
-                          <div className="hint" style={{ gridColumn: "1 / -1" }}>
+                          <div className="hint" className="fullSpan">
                             {uiLang === "ja"
                               ? "屋外の位置（緯度・経度）は「3.できあがり確認」で地図をクリックして調整できます。"
                               : "You can adjust outdoor position (lat/lng) by clicking the map in Step 3 (Preview)."}
@@ -1438,7 +1492,22 @@ const onUndo = useCallback(() => {
                                 onChange={(e) => updatePoi(selectedPoi.id, { y: clamp01(Number(e.target.value)) })}
                               />
                             </label>
-                            <div className="hint" style={{ gridColumn: "1 / -1" }}>
+                            {/* Floor selector for multi-floor indoor */}
+                            {(cfg.indoor.floors ?? []).length >= 2 ? (
+                              <label>
+                                {t(uiLang, "floor_select")}
+                                <select
+                                  value={selectedPoi.floor ?? ""}
+                                  onChange={(e) => updatePoi(selectedPoi.id, { floor: e.target.value })}
+                                >
+                                  <option value="">{(cfg.indoor.floors ?? [])[0]?.label || (cfg.indoor.floors ?? [])[0]?.id || "—"} {t(uiLang, "floor_default")}</option>
+                                  {(cfg.indoor.floors ?? []).map(f => (
+                                    <option key={f.id} value={f.id}>{f.label || f.id}</option>
+                                  ))}
+                                </select>
+                              </label>
+                            ) : null}
+                            <div className="hint" className="fullSpan">
                               {uiLang === "ja"
                                 ? "屋内の位置は「できあがり確認」で地図をクリックして調整できます。ここでは数値（0〜1）でも調整できます。"
                                 : "You can adjust indoor position by clicking the map in Preview. You can also edit numbers here (0–1)."}
@@ -1447,7 +1516,7 @@ const onUndo = useCallback(() => {
                         )}
                       </div>
                     ) : (
-                      <div className="hint" style={{ marginTop: 10 }}>{t(uiLang, "select_item_hint")}</div>
+                      <div className="hint" className="mt10">{t(uiLang, "select_item_hint")}</div>
                     )}
                   </div>
 
@@ -1455,13 +1524,13 @@ const onUndo = useCallback(() => {
                   <div className="card" style={{ padding: 12, gridColumn: "1 / -1" }}>
                     <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
                       <div>
-                        <div style={{ fontWeight: 900 }}>{t(uiLang, "cats_easy_title")}</div>
+                        <div className="sectionTitleOnly">{t(uiLang, "cats_easy_title")}</div>
                         <div className="hint">{uiLang === "ja" ? "マーカーの形や色もここで選べます。" : "Choose marker type and color here."}</div>
                       </div>
                       <button className="btn" onClick={addCategory}>{t(uiLang, "add_category")}</button>
                     </div>
 
-                    <div className="list" style={{ marginTop: 10 }}>
+                    <div className="list" className="mt10">
                       {builderCategories.map(c => {
                         // Category.label is the *default language* label. For beginners, we always show explicit
                         // fields for ja/en, regardless of which is default.
@@ -1508,7 +1577,7 @@ const onUndo = useCallback(() => {
                               </label>
                               <label className="row" style={{ gap: 6 }}>
                                 {uiLang === "ja" ? "形" : "Type"}
-                                <select value={(c.markerType ?? "pin") as any} onChange={(e) => updateCategory(c.category, { markerType: e.target.value as any })}>
+                                <select value={c.markerType ?? "pin"} onChange={(e) => updateCategory(c.category, { markerType: e.target.value as Category["markerType"] })}>
                                   {MARKER_TYPES.map(mt => <option key={mt} value={mt}>{mt}</option>)}
                                 </select>
                               </label>
@@ -1527,12 +1596,12 @@ const onUndo = useCallback(() => {
                 </div>
                 </>
               ) : (
-                <div style={{ marginTop: 10 }}>
+                <div className="mt10">
                   <div className="hint">{uiLang === "ja" ? "Ctrl/⌘+Enter: CSVに反映 / Ctrl/⌘+Shift+Enter: プレビュー更新" : "Ctrl/⌘+Enter: Write to CSV / Ctrl/⌘+Shift+Enter: Update preview"}</div>
-                  <div className="grid2" style={{ marginTop: 10 }}>
+                  <div className="grid2" className="mt10">
                     <div>
                       <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
-                        <div style={{ fontWeight: 900 }}>{t(uiLang, "pois_csv")}</div>
+                        <div className="sectionTitleOnly">{t(uiLang, "pois_csv")}</div>
                         <button className="btn" onClick={() => setPoisCsv(examplePoisCsv())}>{t(uiLang, "fill_sample")}</button>
                       </div>
                       <textarea value={poisCsv} onChange={(e) => setPoisCsv(e.target.value)} rows={16} />
@@ -1541,7 +1610,7 @@ const onUndo = useCallback(() => {
 
                     <div>
                       <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
-                        <div style={{ fontWeight: 900 }}>{t(uiLang, "cats_csv")}</div>
+                        <div className="sectionTitleOnly">{t(uiLang, "cats_csv")}</div>
                         <button className="btn" onClick={() => setCatsCsv(exampleCategoriesCsv())}>{t(uiLang, "fill_sample")}</button>
                       </div>
                       <textarea value={catsCsv} onChange={(e) => setCatsCsv(e.target.value)} rows={16} />
@@ -1559,8 +1628,8 @@ const onUndo = useCallback(() => {
             {/* GeoJSON import/export (outdoor mode) */}
             {cfg.mode === "outdoor" ? (
               <div className="card">
-                <div style={{ fontWeight: 900, marginBottom: 4 }}>{uiLang === "ja" ? "GeoJSON 読み込み / 書き出し" : "GeoJSON import / export"}</div>
-                <div className="hint" style={{ marginBottom: 10 }}>{t(uiLang, "geojson_hint")}</div>
+                <div className="sectionTitleSm">{uiLang === "ja" ? "GeoJSON 読み込み / 書き出し" : "GeoJSON import / export"}</div>
+                <div className="hint" className="mb10">{t(uiLang, "geojson_hint")}</div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                   <label className="btn" style={{ cursor: "pointer" }}>
                     {t(uiLang, "import_geojson")}
@@ -1611,59 +1680,186 @@ const onUndo = useCallback(() => {
 
             {/* Assets */}
             <div className="card">
-              <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "assets_title")}</div>
+              <div className="sectionTitle">{t(uiLang, "assets_title")}</div>
 
               {cfg.mode === "indoor" ? (
-                <div className="card" style={{ marginTop: 8 }}>
-                  <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "assets_floor_title")}</div>
-                  <div className="hint" style={{ marginBottom: 8 }}>
-                    {uiLang === "ja" ? "現在のフロア画像（プレビュー）" : "Current floor image (preview)"}
-                  </div>
-                  <div className="floorPreview">
-                    <img
-                      src={floorPreviewUrl || publicUrl(cfg.indoor.imageUrl)}
-                      alt="floor preview"
-                      style={{ maxWidth: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 12, border: "1px solid rgba(255,255,255,0.10)" }}
-                    />
-                  </div>
-                  <DropZone
-                    title={t(uiLang, "assets_floor_drop")}
-                    accept="image/*"
-                    onFiles={async (files) => {
-                      const f = files[0];
-                      if (!f) return;
-                      const out = await compressImage(f, 2200);
-                      setBuilderAsset("floor", "floor", out);
-                      // Auto-detect floor image size (px) so beginners don't have to type it.
-                      let objUrl: string | null = null;
-                      try {
-                        objUrl = URL.createObjectURL(out);
-                        const img = new Image();
-                        const size = await new Promise<{ w: number; h: number }>((resolve, reject) => {
-                          img.onload = () => resolve({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
-                          img.onerror = () => reject(new Error("failed to read image size"));
-                          img.src = objUrl!;
-                        });
-                        setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, imageWidthPx: size.w, imageHeightPx: size.h } });
-                      } catch {
-                        // ignore
-                      } finally {
-                        if (objUrl) URL.revokeObjectURL(objUrl);
-                      }
+                <div className="card" className="mt8">
+                  <div className="sectionTitleSm">{t(uiLang, "floor_manage_title")}</div>
+                  <div className="hint" className="mb10">{t(uiLang, "floor_manage_hint")}</div>
 
-                    }}
-                  />
-                  {builderAssets.floorFile ? (
-                    <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-                      <div className="hint">{builderAssets.floorFile.name}</div>
-                      <button className="btn danger" onClick={() => removeBuilderAsset("floor")}>{uiLang === "ja" ? "削除" : "Remove"}</button>
+                  {/* Default / single floor image (always shown) */}
+                  <div style={{ padding: "10px 12px", background: "var(--card2)", borderRadius: 12, border: "1px solid var(--line)", marginBottom: 10 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
+                      {uiLang === "ja" ? "デフォルトフロア画像" : "Default floor image"}
                     </div>
-                  ) : <div className="hint" style={{ marginTop: 8 }}>{t(uiLang, "assets_floor_hint")}</div>}
+                    {(floorPreviewUrl || cfg.indoor.imageUrl) ? (
+                      <img
+                        src={floorPreviewUrl || publicUrl(cfg.indoor.imageUrl)}
+                        alt="floor preview"
+                        style={{ maxWidth: "100%", maxHeight: 180, objectFit: "contain", borderRadius: 10, border: "1px solid var(--line)", marginBottom: 8 }}
+                      />
+                    ) : null}
+                    <DropZone
+                      title={t(uiLang, "assets_floor_drop")}
+                      accept="image/*"
+                      onFiles={async (files) => {
+                        const f = files[0];
+                        if (!f) return;
+                        const out = await compressImage(f, 2200);
+                        setBuilderAsset("floor", "floor", out);
+                        let objUrl: string | null = null;
+                        try {
+                          objUrl = URL.createObjectURL(out);
+                          const img = new Image();
+                          const size = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+                            img.onload = () => resolve({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
+                            img.onerror = () => reject(new Error("failed to read image size"));
+                            img.src = objUrl!;
+                          });
+                          setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, imageWidthPx: size.w, imageHeightPx: size.h } });
+                        } catch {} finally { if (objUrl) URL.revokeObjectURL(objUrl); }
+                      }}
+                    />
+                    {builderAssets.floorFile ? (
+                      <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                        <div className="hint">{builderAssets.floorFile.name} ({cfg.indoor.imageWidthPx}×{cfg.indoor.imageHeightPx}px)</div>
+                        <button className="btn danger" style={{ fontSize: 12, padding: "4px 10px" }} onClick={() => removeBuilderAsset("floor")}>{t(uiLang, "remove_floor")}</button>
+                      </div>
+                    ) : <div className="hint" style={{ marginTop: 6 }}>{t(uiLang, "assets_floor_hint")}</div>}
+                  </div>
+
+                  {/* Multi-floor list */}
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, marginTop: 14 }}>
+                    {uiLang === "ja" ? "追加フロア（複数階対応）" : "Additional floors (multi-floor)"}
+                  </div>
+                  <div className="hint" className="mb8">{t(uiLang, "floor_single_hint")}</div>
+
+                  {(cfg.indoor.floors ?? []).map((floor, fi) => {
+                    const floorFileForThis = builderAssets.floorFiles?.[floor.id];
+                    const previewUrl = floorPreviewUrls[floor.id] || "";
+                    return (
+                      <div key={floor.id} style={{
+                        padding: "10px 12px", background: "var(--card2)", borderRadius: 12,
+                        border: "1px solid var(--line)", marginBottom: 8,
+                      }}>
+                        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>
+                            {floor.label || floor.id} {fi === 0 ? <span className="badge">{t(uiLang, "floor_default")}</span> : null}
+                          </div>
+                          <div className="row" style={{ gap: 4 }}>
+                            {fi > 0 ? (
+                              <button className="btn soft" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => {
+                                const floors = [...(cfg.indoor.floors ?? [])];
+                                [floors[fi - 1], floors[fi]] = [floors[fi], floors[fi - 1]];
+                                setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                              }}>{t(uiLang, "floor_move_up")}</button>
+                            ) : null}
+                            {fi < (cfg.indoor.floors ?? []).length - 1 ? (
+                              <button className="btn soft" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => {
+                                const floors = [...(cfg.indoor.floors ?? [])];
+                                [floors[fi], floors[fi + 1]] = [floors[fi + 1], floors[fi]];
+                                setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                              }}>{t(uiLang, "floor_move_down")}</button>
+                            ) : null}
+                            <button className="btn danger" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => {
+                              const floors = (cfg.indoor.floors ?? []).filter((_, i) => i !== fi);
+                              setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                              removeBuilderAsset("floorMulti", floor.id);
+                            }}>{t(uiLang, "remove_floor")}</button>
+                          </div>
+                        </div>
+                        <div className="grid2" style={{ gap: 8 }}>
+                          <label className="fs12">
+                            {t(uiLang, "floor_id")}
+                            <input value={floor.id} onChange={(e) => {
+                              const newId = e.target.value.trim();
+                              if (!newId) return;
+                              const floors = [...(cfg.indoor.floors ?? [])];
+                              const oldId = floors[fi].id;
+                              floors[fi] = { ...floors[fi], id: newId };
+                              setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                              // Migrate file reference
+                              const existingFile = builderAssets.floorFiles?.[oldId];
+                              if (existingFile) {
+                                removeBuilderAsset("floorMulti", oldId);
+                                setBuilderAsset("floorMulti", newId, existingFile);
+                              }
+                              // Update POIs that reference oldId
+                              const updated = builderPois.map(p => p.floor === oldId ? { ...p, floor: newId } : p);
+                              if (updated.some((p, i) => p !== builderPois[i])) {
+                                setBuilderData(updated, builderCategories);
+                              }
+                            }} className="fs13" />
+                          </label>
+                          <label className="fs12">
+                            {t(uiLang, "floor_label_field")}
+                            <input value={floor.label ?? ""} onChange={(e) => {
+                              const floors = [...(cfg.indoor.floors ?? [])];
+                              floors[fi] = { ...floors[fi], label: e.target.value };
+                              setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                            }} placeholder={uiLang === "ja" ? "例: 1F, 2F, B1" : "e.g. 1F, 2F, B1"} className="fs13" />
+                          </label>
+                        </div>
+                        {/* Floor image upload */}
+                        <div className="mt8">
+                          {previewUrl ? (
+                            <img src={previewUrl} alt={floor.label || floor.id} style={{ maxWidth: "100%", maxHeight: 120, objectFit: "contain", borderRadius: 8, border: "1px solid var(--line)", marginBottom: 6 }} />
+                          ) : floor.imageUrl ? (
+                            <img src={publicUrl(floor.imageUrl)} alt={floor.label || floor.id} style={{ maxWidth: "100%", maxHeight: 120, objectFit: "contain", borderRadius: 8, border: "1px solid var(--line)", marginBottom: 6 }} />
+                          ) : null}
+                          <label className="btn soft" style={{ cursor: "pointer", fontSize: 12 }}>
+                            {floorFileForThis ? t(uiLang, "floor_image_set") : t(uiLang, "floor_image_upload")}
+                            <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (ev) => {
+                              const f = ev.target.files?.[0];
+                              if (!f) return;
+                              const out = await compressImage(f, 2200);
+                              setBuilderAsset("floorMulti", floor.id, out);
+                              // Auto-detect size
+                              let objUrl: string | null = null;
+                              try {
+                                objUrl = URL.createObjectURL(out);
+                                const img = new Image();
+                                const size = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+                                  img.onload = () => resolve({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
+                                  img.onerror = () => reject(new Error("failed"));
+                                  img.src = objUrl!;
+                                });
+                                const floors = [...(cfg.indoor.floors ?? [])];
+                                floors[fi] = { ...floors[fi], imageWidthPx: size.w, imageHeightPx: size.h };
+                                setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                              } catch {} finally { if (objUrl) URL.revokeObjectURL(objUrl); }
+                              ev.target.value = "";
+                            }} />
+                          </label>
+                          {floorFileForThis ? (
+                            <span className="hint" style={{ marginLeft: 8 }}>{floorFileForThis.name}</span>
+                          ) : !floor.imageUrl ? (
+                            <span className="hint" style={{ marginLeft: 8 }}>{t(uiLang, "floor_image_none")}</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <button className="btn" style={{ marginTop: 4 }} onClick={() => {
+                    const floors = [...(cfg.indoor.floors ?? [])];
+                    const nextNum = floors.length + 1;
+                    const id = `F${nextNum}`;
+                    floors.push({
+                      id,
+                      label: `${nextNum}F`,
+                      labelI18n: {},
+                      imageUrl: "",
+                      imageWidthPx: cfg.indoor.imageWidthPx || 2000,
+                      imageHeightPx: cfg.indoor.imageHeightPx || 1200,
+                    });
+                    setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                  }}>{t(uiLang, "add_floor")}</button>
                 </div>
               ) : null}
 
-              <div className="card" style={{ marginTop: 10 }}>
-                <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "assets_images_title")}</div>
+              <div className="card" className="mt10">
+                <div className="sectionTitle">{t(uiLang, "assets_images_title")}</div>
                 <DropZone
                   title={t(uiLang, "assets_images_drop")}
                   accept="image/*"
@@ -1676,10 +1872,10 @@ const onUndo = useCallback(() => {
                     }
                   }}
                 />
-                <div className="hint" style={{ marginTop: 8 }}>{t(uiLang, "assets_images_hint")}</div>
+                <div className="hint" className="mt8">{t(uiLang, "assets_images_hint")}</div>
 
                 {Object.keys(builderAssets.images ?? {}).length ? (
-                  <div style={{ marginTop: 10 }}>
+                  <div className="mt10">
                     <div style={{ fontWeight: 800, marginBottom: 6 }}>
                       {uiLang === "ja" ? "アップロード済みの画像" : "Uploaded images"}
                     </div>
@@ -1718,7 +1914,7 @@ const onUndo = useCallback(() => {
         {step === 3 ? (
           <div className="cards">
             <div className="card">
-              <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "preview_title")}</div>
+              <div className="sectionTitle">{t(uiLang, "preview_title")}</div>
               <div className="hint">{t(uiLang, "preview_hint")}</div>
 
               {/* Tabs (map / issues). Placed above the Leaflet map so it never gets hidden. */}
@@ -1792,24 +1988,47 @@ const onUndo = useCallback(() => {
                     </div>
                   </div>
 
-                  <div className="mapWrap" style={{ height: 520, marginTop: 10 }}>
+                  <div className="mapWrap" style={{ height: 520, marginTop: 10, position: "relative" }}>
+                    {cfg.mode === "indoor" && (cfg.indoor.floors ?? []).length >= 2 ? (
+                      <div style={{ position: "absolute", top: 10, right: 10, zIndex: 500 }}>
+                        <FloorSelector
+                          config={cfg}
+                          activeFloor={builderActiveFloor || (cfg.indoor.floors?.[0]?.id ?? "")}
+                          onChange={setBuilderActiveFloor}
+                          contentLang={effectiveContentLang}
+                          uiLang={uiLang}
+                        />
+                      </div>
+                    ) : null}
                     <MapView
                       config={cfg}
                       pois={builderPois}
                       categories={builderCategories}
                       contentLang={effectiveContentLang}
                       uiLang={uiLang}
+                      activeFloor={builderActiveFloor || undefined}
                       onPickPoi={(pickPos || addOnMapClick) ? undefined : (p) => setPicked(p)}
                       onMapClick={onPreviewMapClick}
-                      indoorImageOverrideUrl={floorPreviewUrl || undefined}
+                      indoorImageOverrideUrl={(() => {
+                        // Multi-floor: resolve image URL for active floor
+                        const floors = cfg.indoor.floors ?? [];
+                        if (floors.length >= 2 && builderActiveFloor) {
+                          // Use cached blob URL (managed by useEffect cleanup)
+                          const cached = floorPreviewUrls[builderActiveFloor];
+                          if (cached) return cached;
+                          const floorDef = floors.find(f => f.id === builderActiveFloor);
+                          if (floorDef?.imageUrl) return undefined; // let MapView resolve it
+                        }
+                        return floorPreviewUrl || undefined;
+                      })()}
                     />
                   </div>
                 </>
               ) : null}
 
               {previewTab === "issues" ? (
-                <div className={hasError ? "danger" : "ok"} style={{ marginTop: 10 }}>
-                  <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "detect_errors_title")}</div>
+                <div className={hasError ? "danger" : "ok"} className="mt10">
+                  <div className="sectionTitle">{t(uiLang, "detect_errors_title")}</div>
                   {issues.length ? (
                     <ul className="hint" style={{ margin: 0 }}>
                       {issues.slice(0, 40).map((i, idx) => (
@@ -1839,11 +2058,11 @@ const onUndo = useCallback(() => {
         {step === 4 ? (
           <div className="cards">
             <div className="card">
-              <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "publish_title")}</div>
+              <div className="sectionTitle">{t(uiLang, "publish_title")}</div>
               <div className="hint">{t(uiLang, "publish_hint")}</div>
 
               <div style={{ marginTop: 14 }}>
-                <div style={{ fontWeight: 900, marginBottom: 6 }}>{t(uiLang, "publish_color_templates")}</div>
+                <div className="sectionTitle">{t(uiLang, "publish_color_templates")}</div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                   {([
                     { key: "blue", label: t(uiLang, "theme_blue"), color: "#6ea8fe" },
@@ -1877,6 +2096,7 @@ const onUndo = useCallback(() => {
                         pois: builderPois,
                         categories: builderCategories,
                         floorFile: builderAssets.floorFile,
+                        floorFiles: builderAssets.floorFiles,
                         images: builderAssets.images,
                         themePreset: publishTheme,
                       });
@@ -1905,6 +2125,7 @@ const onUndo = useCallback(() => {
                         pois: builderPois,
                         categories: builderCategories,
                         floorFile: builderAssets.floorFile,
+                        floorFiles: builderAssets.floorFiles,
                         images: builderAssets.images,
                       });
                       downloadBlob(blob, "content-pack.zip");
@@ -1926,8 +2147,8 @@ const onUndo = useCallback(() => {
 
               {/* Embed code helper */}
               <div style={{ marginTop: 16, padding: "12px 14px", background: "var(--card2)", borderRadius: 12, border: "1px solid var(--line)" }}>
-                <div style={{ fontWeight: 900, marginBottom: 4 }}>{t(uiLang, "embed_title")}</div>
-                <div className="hint" style={{ marginBottom: 8 }}>{t(uiLang, "embed_hint")}</div>
+                <div className="sectionTitleSm">{t(uiLang, "embed_title")}</div>
+                <div className="hint" className="mb8">{t(uiLang, "embed_hint")}</div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <code style={{
                     flex: 1, fontSize: 11, padding: "6px 10px",

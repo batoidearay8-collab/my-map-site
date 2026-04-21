@@ -18,6 +18,7 @@ export type ExportInput = {
   pois: Poi[];
   categories: Category[];
   floorFile?: File;
+  floorFiles?: Record<string, File>;  // Multi-floor: keyed by floor ID
   images: Record<string, File>; // key: /images/xxx.jpg
 };
 
@@ -202,6 +203,17 @@ export async function exportSiteZip(input: ExportSiteInput): Promise<Blob> {
     zip.file("assets/" + input.floorFile.name, await input.floorFile.arrayBuffer());
     cfg.indoor.imageUrl = `/assets/${input.floorFile.name}`;
   }
+  // Multi-floor images
+  if (input.floorFiles && cfg.indoor.floors) {
+    for (const floor of cfg.indoor.floors) {
+      const file = input.floorFiles[floor.id];
+      if (file) {
+        const fileName = `floor_${floor.id}_${file.name}`;
+        zip.file("assets/" + fileName, await file.arrayBuffer());
+        floor.imageUrl = `/assets/${fileName}`;
+      }
+    }
+  }
   for (const [pathKey, file] of Object.entries(input.images)) {
     const rel = pathKey.startsWith("/") ? pathKey.slice(1) : pathKey;
     zip.file(rel, await file.arrayBuffer());
@@ -250,6 +262,17 @@ export async function exportContentZip(input: ExportInput): Promise<Blob> {
   if (input.floorFile) {
     zip.file("assets/" + input.floorFile.name, await input.floorFile.arrayBuffer());
     cfg.indoor.imageUrl = `/assets/${input.floorFile.name}`;
+  }
+  // Multi-floor images
+  if (input.floorFiles && cfg.indoor.floors) {
+    for (const floor of cfg.indoor.floors) {
+      const file = input.floorFiles[floor.id];
+      if (file) {
+        const fileName = `floor_${floor.id}_${file.name}`;
+        zip.file("assets/" + fileName, await file.arrayBuffer());
+        floor.imageUrl = `/assets/${fileName}`;
+      }
+    }
   }
 
   for (const [pathKey, file] of Object.entries(input.images)) {

@@ -502,3 +502,40 @@ body.mapOnly .map{
     border-radius:20px 20px 0 0;
   }
 }
+
+/* ── Floor selector (multi-floor indoor) ── */
+.floorSelector{
+  position:absolute;top:10px;right:10px;z-index:500;
+  display:flex;gap:4px;
+  padding:5px 7px;
+  background:color-mix(in srgb, var(--card) 92%, transparent);
+  border-radius:12px;
+  border:1px solid var(--line);
+  backdrop-filter:blur(8px);
+  box-shadow:0 2px 8px rgba(0,0,0,0.15);
+}
+.floorBtn{
+  padding:5px 14px;
+  border-radius:8px;
+  border:1px solid var(--line);
+  background:var(--card);
+  color:var(--text);
+  font-size:12px;font-weight:700;
+  cursor:pointer;
+  transition:all .12s;
+}
+.floorBtn:hover{background:color-mix(in srgb, var(--accent) 15%, var(--card))}
+.floorBtn.active{
+  background:var(--accent);
+  color:#fff;
+  border-color:var(--accent);
+}
+.poiFloor{
+  display:inline-block;
+  font-size:10px;font-weight:700;
+  padding:1px 8px;
+  border-radius:999px;
+  background:color-mix(in srgb, var(--accent) 15%, var(--card));
+  color:var(--accent);
+  margin-top:3px;
+}

@@ -14,6 +14,7 @@ export type ApplyState = "idle" | "pending" | "applied";
 
 export type BuilderAssets = {
   floorFile?: File;
+  floorFiles: Record<string, File>;
   images: Record<string, File>;
 };
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppStore } from "../state/store";
 import { MapView } from "../components/MapView";
@@ -8,6 +8,7 @@ import { type Poi } from "../lib/schema";
 import { pickPoiName, pickPoiDescription, pickCategoryLabel } from "../lib/contentText";
 import { t } from "../lib/i18n";
 import { getOpenStatus, hasBusinessInfo } from "../lib/openStatus";
+import { fetchRoute, formatDuration, formatDistance, type RouteResult } from "../lib/route";
 
 export function ViewerPage() {
   const { isLoaded, loadFromPublic, config, pois, categories, uiLang, contentLang } = useAppStore();
@@ -20,6 +21,47 @@ export function ViewerPage() {
   const [activeFloor, setActiveFloor] = useState("");
 
   const [copied, setCopied] = useState(false);
+
+  // Route navigation state
+  const [routeCoords, setRouteCoords] = useState<[number, number][] | undefined>();
+  const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+
+  const clearRoute = useCallback(() => {
+    setRouteCoords(undefined);
+    setRouteInfo(null);
+  }, []);
+
+  const onRoute = useCallback(async (poi: Poi) => {
+    if (typeof poi.lat !== "number" || typeof poi.lng !== "number") return;
+    if (!navigator.geolocation) {
+      alert(uiLang === "ja" ? "この端末ではGPSが利用できません。" : "Geolocation is not available on this device.");
+      return;
+    }
+    setRouteLoading(true);
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+      });
+      const from: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+      const to: [number, number] = [poi.lat, poi.lng];
+      const lang = uiLang === "ja" ? "ja" : "en";
+      const result = await fetchRoute(from, to, { profile: "foot" });
+      setRouteCoords(result.coordinates);
+      setRouteInfo({
+        distance: formatDistance(result.distanceMeters, lang),
+        duration: formatDuration(result.durationSeconds, lang),
+      });
+      setPicked(null); // close modal to see route
+    } catch (err: any) {
+      const msg = err?.code === 1
+        ? (uiLang === "ja" ? "位置情報の取得が拒否されました。" : "Location access was denied.")
+        : (uiLang === "ja" ? "ルート取得に失敗しました。" : "Failed to get route.");
+      alert(msg);
+    } finally {
+      setRouteLoading(false);
+    }
+  }, [uiLang]);
 
   const mapOnly = useMemo(() => {
     const sp = new URLSearchParams(location.search);
@@ -87,8 +129,8 @@ export function ViewerPage() {
   const onShare = async () => {
     const url = window.location.href;
     try {
-      if ((navigator as any).share) {
-        await (navigator as any).share({ title: document.title, url });
+      if (navigator.share) {
+        await navigator.share({ title: document.title, url });
         return;
       }
     } catch {
@@ -128,9 +170,9 @@ export function ViewerPage() {
     const okQ = !qq || txt.includes(qq);
 
     if (openOnly) {
-      const showBiz = mode === "outdoor" && hasBusinessInfo(p as any);
+      const showBiz = mode === "outdoor" && hasBusinessInfo(p);
       if (!showBiz) return false;
-      const st = getOpenStatus(p as any, now);
+      const st = getOpenStatus(p, now);
       if (st !== "open") return false;
     }
 
@@ -216,12 +258,28 @@ export function ViewerPage() {
             categories={categories}
             activeCategory={cat}
             activeFloor={activeFloor || undefined}
+            routeCoords={routeCoords}
             query={q}
             contentLang={contentLang}
             uiLang={uiLang}
             now={nowTick}
             onPickPoi={(p) => setPicked(p)}
           />
+          {/* Route info banner */}
+          {routeInfo ? (
+            <div style={{
+              position: "absolute", bottom: 10, left: 10, right: 10, zIndex: 500,
+              background: "var(--card)", borderRadius: 14, padding: "10px 14px",
+              border: "1px solid var(--line)", boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+              display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+            }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>🧭 {routeInfo.distance} · {routeInfo.duration}</div>
+                <div className="hint" style={{ fontSize: 11 }}>{uiLang === "ja" ? "徒歩ルート（OSRM）" : "Walking route (OSRM)"}</div>
+              </div>
+              <button className="btn soft" onClick={clearRoute} style={{ fontSize: 12 }}>✕</button>
+            </div>
+          ) : null}
           {mapOnly ? (
             <div className="msf-mapOnlyBar">
               <button className="btn" onClick={toggleMapOnly}>{t(uiLang, "exit_map_only")}</button>
@@ -247,8 +305,8 @@ export function ViewerPage() {
             <div className="cards" role="list">
               {filtered.map(p => {
                 const c = catMap.get(p.category);
-                const showBiz = config.mode === "outdoor" && hasBusinessInfo(p as any);
-                const st = showBiz ? getOpenStatus(p as any, new Date(nowTick)) : "unknown";
+                const showBiz = config.mode === "outdoor" && hasBusinessInfo(p);
+                const st = showBiz ? getOpenStatus(p, new Date(nowTick)) : "unknown";
                 const stIcon = !showBiz ? "" : (st === "open" ? "🟢" : st === "closed" ? "🔴" : "⏰");
                 return (
                   <div key={p.id} className="listItem" role="listitem" tabIndex={0} onClick={() => setPicked(p)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPicked(p); } }}>
@@ -272,6 +330,8 @@ export function ViewerPage() {
           uiLang={uiLang}
           mode={config.mode}
           now={nowTick}
+          onRoute={config.mode === "outdoor" ? onRoute : undefined}
+          routeLoading={routeLoading}
         />
       ) : null}
     </main>

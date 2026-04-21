@@ -29,7 +29,7 @@ export function StepTemplate(props: BuilderContext) {
           <label>
             {t(uiLang, "mode")}
             <select value={cfg.mode} onChange={(e) => {
-              const mode = e.target.value as any;
+              const mode = e.target.value as AppConfig["mode"];
               if (mode === "indoor") setBuilderConfig({ ...cfg, mode: "indoor", indoor: { ...cfg.indoor } });
               else setBuilderConfig({ ...cfg, mode: "outdoor" });
             }}>

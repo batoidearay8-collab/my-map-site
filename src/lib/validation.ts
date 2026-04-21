@@ -110,6 +110,21 @@ export function validateAll(cfg: AppConfig, pois: Poi[], categories: Category[])
         poiId: p.id
       });
     }
+
+    // Multi-floor: check for orphaned floor references
+    if (cfg.mode === "indoor" && p.floor && (cfg.indoor.floors ?? []).length >= 2) {
+      const floorIds = new Set((cfg.indoor.floors ?? []).map(f => f.id));
+      if (!floorIds.has(p.floor)) {
+        issues.push({
+          level: "warn",
+          message: msg(
+            `フロア「${p.floor}」はフロア一覧に存在しません`,
+            `Floor "${p.floor}" is not defined in the floor list.`
+          ),
+          poiId: p.id
+        });
+      }
+    }
   }
 
   if (cfg.mode === "outdoor" && cfg.privacy.hideExactOutdoorLocationByDefault) {

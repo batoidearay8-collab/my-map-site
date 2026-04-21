@@ -1,15 +1,18 @@
 /**
  * Builder sub-components — barrel export.
  *
- * Extracted from the monolithic BuilderPage.tsx for better maintainability.
+ * CURRENT STATUS: These components are extracted reference implementations
+ * of the corresponding sections in BuilderPage.tsx. They are NOT yet
+ * imported by BuilderPage.tsx — the main file still contains inline code.
  *
- * Usage in BuilderPage.tsx:
- *   import { StepImport, StepTemplate, StepPublish, Tutorial } from "./builder";
+ * MIGRATION PLAN:
+ * 1. Each step component receives a `BuilderContext` via props
+ * 2. Shared utilities and constants are in ./utils.ts
+ * 3. To connect: import into BuilderPage.tsx, replace inline JSX sections
+ *    with the component, and pass the BuilderContext props
  *
- * StepData (Step 2) and StepPreview (Step 3) remain in BuilderPage.tsx
- * because they share heavy cross-dependencies (CSV state, position picking,
- * image preview URLs). They should be extracted as a follow-up when the
- * shared state is lifted into a dedicated context or reducer.
+ * NOTE: After significant changes to BuilderPage.tsx (e.g. multi-floor),
+ * these sub-components may be out of sync. Re-sync before connecting.
  */
 export { StepImport } from "./StepImport";
 export { StepTemplate } from "./StepTemplate";

@@ -59,7 +59,7 @@ export function StepImport(props: BuilderContext) {
         if (floorEntry) {
           const blob = await floorEntry.async("blob");
           const name = floorPath.split("/").pop() || "floor.png";
-          setBuilderAsset("floor", floorUrl, new File([blob], name, { type: (blob as any).type || "image/png" }));
+          setBuilderAsset("floor", floorUrl, new File([blob], name, { type: blob.type || "image/png" }));
         }
       }
 
@@ -71,7 +71,7 @@ export function StepImport(props: BuilderContext) {
         const blob = await entry.async("blob");
         const name = p.split("/").pop() || "image";
         const key = "/" + p.slice(prefix.length);
-        setBuilderAsset("image", key, new File([blob], name, { type: (blob as any).type || "" }));
+        setBuilderAsset("image", key, new File([blob], name, { type: blob.type || "" }));
       }
 
       previewBuilder();

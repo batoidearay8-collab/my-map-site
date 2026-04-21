@@ -1,5 +1,13 @@
 import { type Poi } from "./schema";
 
+/**
+ * Business-hours parser (React / builder / viewer side).
+ *
+ * ⚠️  SYNC WARNING: An equivalent parser exists in `src/lib/publish/app.js`
+ *     (search for "getOpenStatus"). When modifying this file, update the
+ *     publish-side copy as well, or run `npm test` to catch drift.
+ */
+
 export type OpenStatus = "open" | "closed" | "unknown";
 
 // Weekday index follows JS Date: 0=Sun ... 6=Sat
@@ -171,8 +179,8 @@ function isNowInIntervals(nowMin: number, intervals: Array<[number, number]>): b
 }
 
 export function getOpenStatus(poi: Pick<Poi, "hours" | "closed">, now = new Date()): OpenStatus {
-  const hours = String((poi as any).hours ?? "").trim();
-  const closed = String((poi as any).closed ?? "").trim();
+  const hours = String(poi.hours ?? "").trim();
+  const closed = String(poi.closed ?? "").trim();
 
   const hoursParsed = parseHoursSchedule(hours);
   const closedParsed = parseClosedDays(closed);
@@ -193,5 +201,5 @@ export function getOpenStatus(poi: Pick<Poi, "hours" | "closed">, now = new Date
 }
 
 export function hasBusinessInfo(poi: Pick<Poi, "hours" | "closed">): boolean {
-  return !!String((poi as any).hours ?? "").trim() || !!String((poi as any).closed ?? "").trim();
+  return !!String(poi.hours ?? "").trim() || !!String(poi.closed ?? "").trim();
 }

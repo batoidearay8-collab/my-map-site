@@ -5,8 +5,9 @@ import { detectUiLang, normalizeUiLang, type UiLang } from "../lib/i18n";
 import { publicUrl } from "../lib/publicUrl";
 
 type BuilderAssets = {
-  floorFile?: File;
-  images: Record<string, File>; // key: relative path (/images/xxx.png)
+  floorFile?: File;                      // Single-floor (legacy)
+  floorFiles: Record<string, File>;      // Multi-floor: keyed by floor ID
+  images: Record<string, File>;          // key: relative path (/images/xxx.png)
 };
 
 type BuilderUndoSnapshot = {
@@ -19,6 +20,7 @@ type BuilderUndoSnapshot = {
 function cloneBuilderAssets(assets: BuilderAssets): BuilderAssets {
   return {
     floorFile: assets.floorFile,
+    floorFiles: { ...(assets.floorFiles || {}) },
     images: { ...(assets.images || {}) },
   };
 }
@@ -58,8 +60,8 @@ type AppState = {
   setBuilderData: (pois: Poi[], categories: Category[]) => void;
   updateBuilderPoi: (poi: Poi) => void;
 
-  setBuilderAsset: (kind: "floor" | "image", key: string, file: File) => void;
-  removeBuilderAsset: (kind: "floor" | "image", key?: string) => void;
+  setBuilderAsset: (kind: "floor" | "floorMulti" | "image", key: string, file: File) => void;
+  removeBuilderAsset: (kind: "floor" | "floorMulti" | "image", key?: string) => void;
 
   // UI actions
   setUiLang: (lang: UiLang) => void;
@@ -152,7 +154,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   builderConfig: null,
   builderPois: [],
   builderCategories: [],
-  builderAssets: { images: {} },
+  builderAssets: { floorFiles: {}, images: {} },
 
   builderEpoch: 0,
 
@@ -184,7 +186,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       builderConfig: structuredClone(parsedCfg),
       builderPois: structuredClone(parsedPois),
       builderCategories: structuredClone(parsedCats),
-      builderAssets: { images: {} }
+      builderAssets: { floorFiles: {}, images: {} }
     });
 
     // If language/theme is not explicitly chosen by user, prefer config defaults
@@ -242,6 +244,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     const assets = get().builderAssets;
     if (kind === "floor") {
       set({ builderUndo: makeUndoSnapshot(get()), builderAssets: { ...assets, floorFile: file } });
+    } else if (kind === "floorMulti") {
+      // key = floor ID
+      set({ builderUndo: makeUndoSnapshot(get()), builderAssets: { ...assets, floorFiles: { ...assets.floorFiles, [key]: file } } });
     } else {
       set({ builderUndo: makeUndoSnapshot(get()), builderAssets: { ...assets, images: { ...assets.images, [key]: file } } });
     }
@@ -251,6 +256,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const assets = get().builderAssets;
     if (kind === "floor") {
       set({ builderUndo: makeUndoSnapshot(get()), builderAssets: { ...assets, floorFile: undefined } });
+    } else if (kind === "floorMulti") {
+      if (!key) return;
+      const next = { ...assets.floorFiles };
+      delete next[key];
+      set({ builderUndo: makeUndoSnapshot(get()), builderAssets: { ...assets, floorFiles: next } });
     } else {
       if (!key) return;
       const next = { ...assets.images };
@@ -308,7 +318,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       builderConfig: structuredClone(newCfg),
       builderPois: [],
       builderCategories: structuredClone(newCats),
-      builderAssets: { images: {} },
+      builderAssets: { floorFiles: {}, images: {} },
 
       contentLang: newCfg.i18n.defaultLang || "ja",
       uiLang: (newCfg.i18n.defaultLang || "ja").toLowerCase().startsWith("en") ? "en" : "ja",

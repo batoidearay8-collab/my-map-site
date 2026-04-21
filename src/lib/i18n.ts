@@ -345,7 +345,23 @@ const UI_DICT: Record<string, Record<UiLang, string>> = {
   skip_to_map: { ja: "地図へスキップ", en: "Skip to map" },
   skip_to_list: { ja: "一覧へスキップ", en: "Skip to list" },
   map_region: { ja: "地図エリア", en: "Map area" },
-  list_region: { ja: "一覧エリア", en: "List area" }
+  list_region: { ja: "一覧エリア", en: "List area" },
+
+  // Multi-floor (indoor)
+  floor_manage_title: { ja: "フロア管理", en: "Floor Management" },
+  floor_manage_hint: { ja: "複数フロアの施設（校舎、モールなど）に対応。フロアごとに画像を設定できます。", en: "Supports multi-floor buildings (schools, malls, etc.). Set a separate image for each floor." },
+  add_floor: { ja: "フロアを追加", en: "Add floor" },
+  remove_floor: { ja: "削除", en: "Remove" },
+  floor_id: { ja: "フロアID", en: "Floor ID" },
+  floor_label_field: { ja: "表示名", en: "Label" },
+  floor_image_upload: { ja: "フロア画像", en: "Floor image" },
+  floor_image_set: { ja: "画像設定済み", en: "Image set" },
+  floor_image_none: { ja: "画像未設定", en: "No image" },
+  floor_single_hint: { ja: "フロアが1つの場合はフロア切替UIは表示されません。", en: "Floor switcher UI won't appear with a single floor." },
+  floor_select: { ja: "フロア", en: "Floor" },
+  floor_default: { ja: "（デフォルト）", en: "(default)" },
+  floor_move_up: { ja: "↑", en: "↑" },
+  floor_move_down: { ja: "↓", en: "↓" }
 };
 
 export function t(lang: UiLang, key: keyof typeof UI_DICT): string {

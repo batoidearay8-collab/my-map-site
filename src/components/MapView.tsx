@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import * as L from "leaflet";
-import { MapContainer, TileLayer, ImageOverlay, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, ImageOverlay, Marker, Popup, Polyline, useMap, useMapEvents } from "react-leaflet";
 import { type AppConfig, type Poi, type Category } from "../lib/schema";
 import { pickPoiName, pickPoiDescription, pickCategoryLabel } from "../lib/contentText";
 import { publicUrl } from "../lib/publicUrl";
@@ -270,6 +270,8 @@ export function MapView(props: {
   now?: number;
   /** Active floor ID for multi-floor indoor maps. */
   activeFloor?: string;
+  /** Route polyline coordinates [lat, lng][] for navigation display (outdoor only). */
+  routeCoords?: [number, number][];
   onPickPoi?: (poi: Poi) => void;
 
   // Builder helper: map click
@@ -311,9 +313,9 @@ export function MapView(props: {
       const okQ = !q || txt.includes(q);
 
       if (openOnly) {
-        const showBiz = config.mode === "outdoor" && hasBusinessInfo(p as any);
+        const showBiz = config.mode === "outdoor" && hasBusinessInfo(p);
         if (!showBiz) return false;
-        const st = getOpenStatus(p as any, now);
+        const st = getOpenStatus(p, now);
         if (st !== "open") return false;
       }
 
@@ -408,16 +410,16 @@ export function MapView(props: {
             const glyph = (cat?.icon ?? "").trim() || "•";
 
             const bizStatus: OpenStatus | undefined =
-              (config.mode === "outdoor" && hasBusinessInfo(p as any))
-                ? getOpenStatus(p as any, now)
+              (config.mode === "outdoor" && hasBusinessInfo(p))
+                ? getOpenStatus(p, now)
                 : undefined;
 
             const popup = (
               <>
                 <div style={{ fontWeight: 900 }}>{cat?.icon ? `${cat.icon} ` : ""}{name}</div>
                 <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>{catLabel}</div>
-                {config.mode === "outdoor" && hasBusinessInfo(p as any) ? (() => {
-                  const st = getOpenStatus(p as any, now);
+                {config.mode === "outdoor" && hasBusinessInfo(p) ? (() => {
+                  const st = getOpenStatus(p, now);
                   const icon = st === "open" ? "🟢" : st === "closed" ? "🔴" : "⏰";
                   const label = st === "open" ? t(uiLang, "open_now") : st === "closed" ? t(uiLang, "closed_now") : t(uiLang, "hours_unknown");
                   return <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>{icon} {label}</div>;
@@ -449,6 +451,14 @@ export function MapView(props: {
             </Marker>
           ));
         })()}
+
+        {/* Route polyline (outdoor navigation) */}
+        {props.routeCoords && props.routeCoords.length >= 2 && config.mode === "outdoor" ? (
+          <Polyline
+            positions={props.routeCoords}
+            pathOptions={{ color: "var(--accent, #6ea8fe)", weight: 5, opacity: 0.8, dashArray: "10 6" }}
+          />
+        ) : null}
 
         {bounds ? <FitBounds bounds={bounds} /> : null}
       </MapContainer>

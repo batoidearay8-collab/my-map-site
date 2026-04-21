@@ -62,8 +62,8 @@ export function poisToCsv(pois: Poi[], cfgSupportedLangs: string[], defaultLang:
     cols.push(p.x !== undefined ? String(p.x) : "");
     cols.push(p.y !== undefined ? String(p.y) : "");
     cols.push(p.url ?? "");
-    cols.push((p as any).hours ?? "");
-    cols.push((p as any).closed ?? "");
+    cols.push(p.hours ?? "");
+    cols.push(p.closed ?? "");
     cols.push(p.floor ?? "");
     return cols.map(csvEscape).join(",");
   });
@@ -84,7 +84,7 @@ export function categoriesToCsv(cats: Category[], cfgSupportedLangs: string[], d
     for (const l of extra) cols.push((c.labelI18n ?? {})[l] ?? "");
     cols.push(c.icon ?? "");
     cols.push(c.order !== undefined ? String(c.order) : "");
-    cols.push((c.markerType ?? "") as any);
+    cols.push(c.markerType ?? "");
     cols.push(c.markerColor ?? "");
     return cols.map(csvEscape).join(",");
   });

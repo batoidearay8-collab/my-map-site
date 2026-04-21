@@ -737,3 +737,31 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   color:#000;
   border-color:var(--accent);
 }
+
+/* ── Builder utility classes (replacing inline styles) ── */
+.sectionTitle{font-weight:900;margin-bottom:6px}
+.sectionTitleSm{font-weight:900;margin-bottom:4px}
+.sectionTitleOnly{font-weight:900}
+.mt8{margin-top:8px}
+.mt10{margin-top:10px}
+.mt12{margin-top:12px}
+.mt14{margin-top:14px}
+.mb6{margin-bottom:6px}
+.mb8{margin-bottom:8px}
+.mb10{margin-bottom:10px}
+.mb12{margin-bottom:12px}
+.gap6{gap:6px}
+.gap8{gap:8px}
+.gap10{gap:10px}
+.fullSpan{grid-column:1 / -1}
+.spaceBetween{justify-content:space-between;align-items:center}
+.spaceBetweenEnd{justify-content:space-between;align-items:end}
+.flexWrap{flex-wrap:wrap}
+.fs12{font-size:12px}
+.fs13{font-size:13px}
+.fw700{font-weight:700}
+.fw900{font-weight:900}
+.floorImgPreview{max-width:100%;max-height:120px;object-fit:contain;border-radius:8px;border:1px solid var(--line);margin-bottom:6px}
+.cardInner{padding:10px 12px;background:var(--card2);border-radius:12px;border:1px solid var(--line)}
+.btnSmall{padding:2px 8px;font-size:12px}
+.errorText{margin-top:8px;color:#f66}

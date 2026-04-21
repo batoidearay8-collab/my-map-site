@@ -221,6 +221,10 @@
     return !!String((poi && poi.hours) || "").trim() || !!String((poi && poi.closed) || "").trim();
   }
 
+  /*
+   * ⚠️  SYNC WARNING: This business-hours parser is duplicated from
+   *     src/lib/openStatus.ts. Keep both in sync when modifying.
+   */
   function getOpenStatus(poi, now) {
     var hours = String((poi && poi.hours) || "").trim();
     var closed = String((poi && poi.closed) || "").trim();
@@ -317,6 +321,17 @@
     html += '<div class="poiMain">';
     html += '<div class="poiName"><span class="statusIcon" data-status aria-hidden="true">' + (stIcon ? escapeHtml(stIcon) + ' ' : '') + '</span>' + escapeHtml(name) + '</div>';
     if (desc) html += '<div class="poiDesc">' + escapeHtml(desc) + '</div>';
+    // Multi-floor: show floor badge
+    if (cfg && cfg.mode === "indoor" && floors.length >= 2 && poi.floor) {
+      var floorLabel = poi.floor;
+      for (var fi3 = 0; fi3 < floors.length; fi3++) {
+        if (floors[fi3].id === poi.floor) {
+          floorLabel = pickI18n(floors[fi3].label, floors[fi3].labelI18n, lang) || floors[fi3].id;
+          break;
+        }
+      }
+      html += '<div class="poiFloor">' + escapeHtml(floorLabel) + '</div>';
+    }
     html += '</div>';
     html += '</div>';
 
@@ -561,6 +576,12 @@ if (openOnlyBtn) {
     var markers = new Map();
     var didAutoFit = false;
 
+    // Multi-floor (indoor)
+    var activeFloor = "";
+    var floorOverlay = null;
+    var floors = (cfg && cfg.indoor && cfg.indoor.floors) ? cfg.indoor.floors : [];
+    if (floors.length >= 2 && !activeFloor) activeFloor = floors[0].id;
+
     // Outdoor-only: "My location" (GPS)
     var locateCtrlAdded = false;
     var locateBtnEl = null;
@@ -702,6 +723,17 @@ if (openOnlyBtn) {
       if (cfg.mode === "indoor") {
         var w = cfg.indoor && cfg.indoor.imageWidthPx ? cfg.indoor.imageWidthPx : 1000;
         var h = cfg.indoor && cfg.indoor.imageHeightPx ? cfg.indoor.imageHeightPx : 1000;
+        // Multi-floor: use floor-specific dimensions if available
+        if (floors.length >= 2) {
+          var poiFloor = (p.floor || "").trim() || (floors[0] ? floors[0].id : "");
+          for (var fi = 0; fi < floors.length; fi++) {
+            if (floors[fi].id === poiFloor) {
+              w = floors[fi].imageWidthPx || w;
+              h = floors[fi].imageHeightPx || h;
+              break;
+            }
+          }
+        }
         var x = (typeof p.x === "number" ? p.x : 0.5);
         var y = (typeof p.y === "number" ? p.y : 0.5);
         return L.latLng(y * h, x * w);
@@ -733,8 +765,22 @@ if (openOnlyBtn) {
         var h = cfg.indoor && cfg.indoor.imageHeightPx ? cfg.indoor.imageHeightPx : 1000;
         var bounds = [[0, 0], [h, w]];
         var imgUrl = resolvePublic((cfg.indoor && cfg.indoor.imageUrl) ? cfg.indoor.imageUrl : "");
+
+        // Multi-floor: use active floor image if available
+        if (floors.length >= 2 && activeFloor) {
+          for (var fi2 = 0; fi2 < floors.length; fi2++) {
+            if (floors[fi2].id === activeFloor && floors[fi2].imageUrl) {
+              imgUrl = resolvePublic(floors[fi2].imageUrl);
+              w = floors[fi2].imageWidthPx || w;
+              h = floors[fi2].imageHeightPx || h;
+              bounds = [[0, 0], [h, w]];
+              break;
+            }
+          }
+        }
+
         if (imgUrl) {
-          L.imageOverlay(imgUrl, bounds).addTo(map);
+          floorOverlay = L.imageOverlay(imgUrl, bounds).addTo(map);
         }
         map.fitBounds(bounds);
       } else {
@@ -859,6 +905,11 @@ if (openOnlyBtn) {
           if (!now) now = new Date();
           var st2 = getOpenStatus(p, now);
           if (st2 !== "open") return false;
+        }
+        // Multi-floor filter
+        if (cfg && cfg.mode === "indoor" && floors.length >= 2 && activeFloor) {
+          var poiFloor = (p.floor || "").trim() || (floors[0] ? floors[0].id : "");
+          if (poiFloor !== activeFloor) return false;
         }
         if (activeCat && p.category !== activeCat) return false;
         if (!q) return true;
@@ -1041,6 +1092,85 @@ if (openOnlyBtn) {
     }
     // ────────────────────────────────────────────────────────────
 
+    // Multi-floor: switch floor image overlay and re-render
+    function switchFloor(floorId) {
+      if (!map || !cfg || cfg.mode !== "indoor") return;
+      if (floorId === activeFloor) return;
+      activeFloor = floorId;
+
+      // Remove old overlay
+      if (floorOverlay) {
+        try { floorOverlay.remove(); } catch {}
+        floorOverlay = null;
+      }
+
+      // Find floor def
+      var floorDef = null;
+      for (var i = 0; i < floors.length; i++) {
+        if (floors[i].id === floorId) { floorDef = floors[i]; break; }
+      }
+
+      var w = (floorDef && floorDef.imageWidthPx) || cfg.indoor.imageWidthPx || 1000;
+      var h = (floorDef && floorDef.imageHeightPx) || cfg.indoor.imageHeightPx || 1000;
+      var bounds = [[0, 0], [h, w]];
+      var imgUrl = "";
+      if (floorDef && floorDef.imageUrl) {
+        imgUrl = resolvePublic(floorDef.imageUrl);
+      } else {
+        imgUrl = resolvePublic(cfg.indoor.imageUrl || "");
+      }
+
+      if (imgUrl) {
+        floorOverlay = L.imageOverlay(imgUrl, bounds).addTo(map);
+        // Move overlay to back so markers are on top
+        try { floorOverlay.bringToBack(); } catch {}
+      }
+
+      // Re-render markers and list for new floor
+      var filtered = applyFilters(pois);
+      clearMarkers();
+      addMarkers(filtered);
+      renderList(filtered);
+      renderFloorSelector();
+    }
+
+    // Render floor selector buttons
+    function renderFloorSelector() {
+      if (!cfg || cfg.mode !== "indoor" || floors.length < 2) return;
+
+      var container = document.getElementById("floorSelector");
+      if (!container) {
+        // Create container and insert into the map area
+        container = document.createElement("div");
+        container.id = "floorSelector";
+        container.className = "floorSelector";
+        var mapEl = $("map");
+        if (mapEl && mapEl.parentNode) {
+          mapEl.parentNode.style.position = "relative";
+          mapEl.parentNode.appendChild(container);
+        }
+      }
+
+      var html = "";
+      for (var i = 0; i < floors.length; i++) {
+        var f = floors[i];
+        var label = pickI18n(f.label, f.labelI18n, lang) || f.id;
+        var cls = "floorBtn" + (f.id === activeFloor ? " active" : "");
+        html += '<button type="button" class="' + cls + '" data-floor="' + escapeHtml(f.id) + '">';
+        html += escapeHtml(label);
+        html += '</button>';
+      }
+      container.innerHTML = html;
+
+      // Bind click events
+      container.querySelectorAll(".floorBtn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var fid = btn.getAttribute("data-floor");
+          if (fid) switchFloor(fid);
+        });
+      });
+    }
+
     function renderAll() {
       // Open-only button text + availability
       applyOpenOnlyBtnText();
@@ -1061,6 +1191,7 @@ if (openOnlyBtn) {
       renderChips();
       var filtered = applyFilters(pois);
       initMapOnce();
+      renderFloorSelector();
       clearMarkers();
       addMarkers(filtered);
       // Auto focus map to POIs on first render (prevents the default Tokyo view)

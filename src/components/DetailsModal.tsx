@@ -13,19 +13,23 @@ export function DetailsModal(props: {
   uiLang: UiLang;
   mode?: "outdoor" | "indoor";
   now?: number;
+  /** Called when user requests route to this POI. Undefined = hide button. */
+  onRoute?: (poi: Poi) => void;
+  /** If a route is currently loading. */
+  routeLoading?: boolean;
 }) {
   const { poi, category, contentLang, uiLang } = props;
   const name = pickPoiName(poi, contentLang);
   const desc = pickPoiDescription(poi, contentLang);
   const catLabel = category ? pickCategoryLabel(category, contentLang) : poi.category;
 
-  const showBiz = props.mode === "outdoor" && hasBusinessInfo(poi as any);
+  const showBiz = props.mode === "outdoor" && hasBusinessInfo(poi);
   const now = new Date(props.now ?? Date.now());
-  const st = showBiz ? getOpenStatus(poi as any, now) : "unknown";
+  const st = showBiz ? getOpenStatus(poi, now) : "unknown";
   const stIcon = !showBiz ? "" : (st === "open" ? "🟢" : st === "closed" ? "🔴" : "⏰");
   const stLabel = !showBiz ? "" : (st === "open" ? t(uiLang, "open_now") : st === "closed" ? t(uiLang, "closed_now") : t(uiLang, "hours_unknown"));
-  const hours = String((poi as any).hours ?? "").trim();
-  const closed = String((poi as any).closed ?? "").trim();
+  const hours = String(poi.hours ?? "").trim();
+  const closed = String(poi.closed ?? "").trim();
 
   return (
     <div className="modalBackdrop" onClick={props.onClose}>
@@ -55,11 +59,22 @@ export function DetailsModal(props: {
 
         <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{desc}</div>
 
-        {poi.url ? (
-          <div className="row" style={{ marginTop: 10 }}>
+        <div className="row" style={{ marginTop: 10, gap: 8, flexWrap: "wrap" }}>
+          {poi.url ? (
             <a className="btn primary" href={poi.url} target="_blank" rel="noreferrer noopener">{t(uiLang, "external_link")}</a>
-          </div>
-        ) : null}
+          ) : null}
+          {props.onRoute && props.mode === "outdoor" && typeof poi.lat === "number" && typeof poi.lng === "number" ? (
+            <button
+              className="btn"
+              disabled={props.routeLoading}
+              onClick={() => props.onRoute?.(poi)}
+            >
+              {props.routeLoading
+                ? (uiLang === "ja" ? "計算中…" : "Calculating…")
+                : (uiLang === "ja" ? "🧭 ここへのルート" : "🧭 Route here")}
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   );
