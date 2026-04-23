@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { toast } from "./ToastHost";
 import * as L from "leaflet";
 import { MapContainer, TileLayer, ImageOverlay, Marker, Popup, Polyline, useMap, useMapEvents } from "react-leaflet";
 import { type AppConfig, type Poi, type Category } from "../lib/schema";
@@ -30,7 +31,7 @@ function LocateControl({ enabled, uiLang }: { enabled: boolean; uiLang: UiLang }
     if (!enabled) return;
 
     if (!("geolocation" in navigator) || !navigator.geolocation) {
-      alert(t(uiLang, "locate_not_supported"));
+      toast.info(t(uiLang, "locate_not_supported"));
       return;
     }
 
@@ -68,8 +69,8 @@ function LocateControl({ enabled, uiLang }: { enabled: boolean; uiLang: UiLang }
       },
       (err) => {
         setBusy(false);
-        if (err?.code === 1) alert(t(uiLang, "locate_permission_denied"));
-        else alert(t(uiLang, "locate_failed"));
+        if (err?.code === 1) toast.error(t(uiLang, "locate_permission_denied"));
+        else toast.error(t(uiLang, "locate_failed"));
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
@@ -102,6 +103,16 @@ function FitBounds({ bounds }: { bounds: L.LatLngBounds }) {
   const map = useMap();
   React.useEffect(() => {
     map.fitBounds(bounds.pad(0.2));
+  }, [map, bounds]);
+  return null;
+}
+
+/** Ensures indoor map shows the full floor image initially, with padding. */
+function FitIndoorImage({ bounds }: { bounds: L.LatLngBounds }) {
+  const map = useMap();
+  React.useEffect(() => {
+    // Fit the whole image with some padding so users see the full floor plan
+    map.fitBounds(bounds, { padding: [20, 20] });
   }, [map, bounds]);
   return null;
 }
@@ -372,17 +383,18 @@ export function MapView(props: {
   return (
     <div className="mapWrap">
       <MapContainer
+        key={`map-${config.mode}`}
         center={config.mode === "outdoor" ? centerOutdoor : [indoorH / 2, indoorW / 2]}
-        zoom={config.mode === "outdoor" ? config.outdoor.zoom : 0}
+        zoom={config.mode === "outdoor" ? config.outdoor.zoom : -1}
         crs={config.mode === "indoor" ? L.CRS.Simple : L.CRS.EPSG3857}
-        minZoom={config.mode === "indoor" ? (config.indoor.minZoom ?? -2) : undefined}
+        minZoom={config.mode === "indoor" ? (config.indoor.minZoom ?? -4) : undefined}
         maxZoom={config.mode === "indoor" ? (config.indoor.maxZoom ?? 2) : undefined}
         style={{ height: "100%", width: "100%" }}
       >
         {config.mode === "outdoor" ? (
           <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         ) : (
-          <ImageOverlay url={indoorImageUrl} bounds={indoorBounds} />
+          indoorImageUrl ? <ImageOverlay url={indoorImageUrl} bounds={indoorBounds} /> : null
         )}
 
         <ZoomControlPosition position={props.mapOnly ? "bottomleft" : "topleft"} />
@@ -460,7 +472,11 @@ export function MapView(props: {
           />
         ) : null}
 
-        {bounds ? <FitBounds bounds={bounds} /> : null}
+        {/* For indoor mode, fit the full floor image. For outdoor, fit markers. */}
+        {config.mode === "indoor"
+          ? <FitIndoorImage bounds={indoorBounds} />
+          : (bounds ? <FitBounds bounds={bounds} /> : null)
+        }
       </MapContainer>
     </div>
   );

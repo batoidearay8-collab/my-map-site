@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "../components/ToastHost";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppStore } from "../state/store";
 import { MapView } from "../components/MapView";
@@ -11,7 +12,7 @@ import { getOpenStatus, hasBusinessInfo } from "../lib/openStatus";
 import { fetchRoute, formatDuration, formatDistance, type RouteResult } from "../lib/route";
 
 export function ViewerPage() {
-  const { isLoaded, loadFromPublic, config, pois, categories, uiLang, contentLang } = useAppStore();
+  const { isLoaded, loadFromPublic, config, pois, categories, uiLang, contentLang, previewFloorUrl, previewFloorUrls } = useAppStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -35,7 +36,7 @@ export function ViewerPage() {
   const onRoute = useCallback(async (poi: Poi) => {
     if (typeof poi.lat !== "number" || typeof poi.lng !== "number") return;
     if (!navigator.geolocation) {
-      alert(uiLang === "ja" ? "この端末ではGPSが利用できません。" : "Geolocation is not available on this device.");
+      toast.info(uiLang === "ja" ? "この端末ではGPSが利用できません。" : "Geolocation is not available on this device.");
       return;
     }
     setRouteLoading(true);
@@ -57,7 +58,7 @@ export function ViewerPage() {
       const msg = err?.code === 1
         ? (uiLang === "ja" ? "位置情報の取得が拒否されました。" : "Location access was denied.")
         : (uiLang === "ja" ? "ルート取得に失敗しました。" : "Failed to get route.");
-      alert(msg);
+      toast.info(msg);
     } finally {
       setRouteLoading(false);
     }
@@ -263,7 +264,17 @@ export function ViewerPage() {
             contentLang={contentLang}
             uiLang={uiLang}
             now={nowTick}
-            onPickPoi={(p) => setPicked(p)}
+            indoorImageOverrideUrl={(() => {
+              // Use uploaded preview URLs (for builder → viewer transition without export)
+              if (config.mode !== "indoor") return undefined;
+              const floors = config.indoor.floors ?? [];
+              if (floors.length >= 2) {
+                const fid = activeFloor || floors[0]?.id || "";
+                return previewFloorUrls?.[fid] || undefined;
+              }
+              return previewFloorUrl || undefined;
+            })()}
+            onPickPoi={(p) => { setPicked(p); clearRoute(); }}
           />
           {/* Route info banner */}
           {routeInfo ? (
@@ -309,7 +320,7 @@ export function ViewerPage() {
                 const st = showBiz ? getOpenStatus(p, new Date(nowTick)) : "unknown";
                 const stIcon = !showBiz ? "" : (st === "open" ? "🟢" : st === "closed" ? "🔴" : "⏰");
                 return (
-                  <div key={p.id} className="listItem" role="listitem" tabIndex={0} onClick={() => setPicked(p)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPicked(p); } }}>
+                  <div key={p.id} className="listItem" role="listitem" tabIndex={0} onClick={() => { setPicked(p); clearRoute(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPicked(p); clearRoute(); } }}>
                     <div className="name">{stIcon ? <span className="bizIcon" aria-hidden="true">{stIcon}</span> : null} {(c?.icon ?? "")} {pickPoiName(p, contentLang)}</div>
                     <div className="meta">{c ? pickCategoryLabel(c, contentLang) : p.category}</div>
                     <div className="meta">{(pickPoiDescription(p, contentLang) ?? "").slice(0, 60)}{(pickPoiDescription(p, contentLang) ?? "").length > 60 ? "…" : ""}</div>

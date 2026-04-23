@@ -53,16 +53,31 @@ export function DetailsModal(props: {
           <img
             alt=""
             src={publicUrl(poi.image)}
-            style={{ width: "100%", borderRadius: 14, border: "1px solid var(--line)", margin: "10px 0" }}
+            style={{
+              width: "100%",
+              maxHeight: "min(50vh, 400px)",
+              objectFit: "contain",
+              borderRadius: 14,
+              border: "1px solid var(--line)",
+              margin: "10px 0",
+              display: "block",
+            }}
           />
         ) : null}
 
         <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{desc}</div>
 
         <div className="row" style={{ marginTop: 10, gap: 8, flexWrap: "wrap" }}>
-          {poi.url ? (
-            <a className="btn primary" href={poi.url} target="_blank" rel="noreferrer noopener">{t(uiLang, "external_link")}</a>
-          ) : null}
+          {(() => {
+            // Fix #7: Only allow http/https URLs to prevent javascript: XSS
+            const url = (poi.url || "").trim();
+            if (!url) return null;
+            const isSafe = /^https?:\/\//i.test(url) || url.startsWith("mailto:") || url.startsWith("tel:");
+            if (!isSafe) return null;
+            return (
+              <a className="btn primary" href={url} target="_blank" rel="noreferrer noopener">{t(uiLang, "external_link")}</a>
+            );
+          })()}
           {props.onRoute && props.mode === "outdoor" && typeof poi.lat === "number" && typeof poi.lng === "number" ? (
             <button
               className="btn"

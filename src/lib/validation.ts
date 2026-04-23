@@ -36,6 +36,43 @@ export function validateAll(cfg: AppConfig, pois: Poi[], categories: Category[])
     });
   }
 
+  // Fix #4: Check for duplicate POI IDs
+  const idSeen = new Map<string, number>();
+  for (const p of pois) {
+    const prev = idSeen.get(p.id) ?? 0;
+    idSeen.set(p.id, prev + 1);
+  }
+  for (const [id, count] of idSeen.entries()) {
+    if (count > 1) {
+      issues.push({
+        level: "error",
+        message: msg(
+          `ID「${id}」が${count}回使われています。IDは一意である必要があります。`,
+          `ID "${id}" is used ${count} times. IDs must be unique.`
+        ),
+        poiId: id
+      });
+    }
+  }
+
+  // Also check for duplicate category keys
+  const catSeen = new Map<string, number>();
+  for (const c of categories) {
+    const prev = catSeen.get(c.category) ?? 0;
+    catSeen.set(c.category, prev + 1);
+  }
+  for (const [key, count] of catSeen.entries()) {
+    if (count > 1) {
+      issues.push({
+        level: "error",
+        message: msg(
+          `カテゴリキー「${key}」が${count}回使われています。一意である必要があります。`,
+          `Category key "${key}" is used ${count} times. Must be unique.`
+        )
+      });
+    }
+  }
+
   for (const p of pois) {
     if (!p.name.trim()) {
       issues.push({ level: "error", message: msg("nameが空です", "POI name is empty."), poiId: p.id });

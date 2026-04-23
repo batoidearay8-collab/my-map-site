@@ -515,20 +515,26 @@ body.mapOnly .map{
   box-shadow:0 2px 8px rgba(0,0,0,0.15);
 }
 .floorBtn{
-  padding:5px 14px;
+  padding:7px 16px;
   border-radius:8px;
-  border:1px solid var(--line);
+  border:2px solid var(--line);
   background:var(--card);
   color:var(--text);
-  font-size:12px;font-weight:700;
+  font-size:13px;font-weight:800;
   cursor:pointer;
   transition:all .12s;
+  letter-spacing:0.02em;
 }
-.floorBtn:hover{background:color-mix(in srgb, var(--accent) 15%, var(--card))}
+.floorBtn:hover{
+  background:color-mix(in srgb, var(--accent) 15%, var(--card));
+  border-color:color-mix(in srgb, var(--accent) 50%, var(--line));
+}
 .floorBtn.active{
   background:var(--accent);
   color:#fff;
   border-color:var(--accent);
+  box-shadow:0 2px 8px color-mix(in srgb, var(--accent) 40%, transparent);
+  transform:translateY(-1px);
 }
 .poiFloor{
   display:inline-block;

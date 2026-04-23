@@ -4,6 +4,7 @@ import { ViewerPage } from "./pages/ViewerPage";
 import { BuilderPage } from "./pages/BuilderPage";
 import { useAppStore } from "./state/store";
 import { PrivacyBanner } from "./components/PrivacyBanner";
+import { ToastHost } from "./components/ToastHost";
 import { t, langLabel, type UiLang } from "./lib/i18n";
 import { pickConfigTitle, pickConfigSubtitle } from "./lib/contentText";
 import { publicUrl } from "./lib/publicUrl";
@@ -18,6 +19,27 @@ function applyTheme(theme: "dark" | "light" | "system") {
   // system
   const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
   set(mq?.matches ? "dark" : "light");
+}
+
+// Color palette for the publish color templates (keep in sync with BuilderPage)
+const ACCENT_COLORS: Record<string, string> = {
+  blue: "#6ea8fe",
+  green: "#2fd4a3",
+  orange: "#ffb020",
+  purple: "#b39ddb",
+  red: "#ff6b6b",
+};
+
+function applyAccent(preset?: string) {
+  const root = document.documentElement;
+  const color = preset && ACCENT_COLORS[preset];
+  if (color) {
+    // Use setProperty with priority to beat :root defaults when theme toggles
+    root.style.setProperty("--accent", color, "important");
+  } else {
+    // Remove override so the stylesheet's default takes effect
+    root.style.removeProperty("--accent");
+  }
 }
 
 export function App() {
@@ -51,14 +73,21 @@ export function App() {
 
   React.useEffect(() => {
     applyTheme(uiTheme);
+    // Re-apply accent color after theme change so color template survives toggles
+    applyAccent(cfg?.ui?.themePreset);
     if (uiTheme === "system") {
       const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
-      const on = () => applyTheme("system");
+      const on = () => { applyTheme("system"); applyAccent(cfg?.ui?.themePreset); };
       mq?.addEventListener?.("change", on);
       return () => mq?.removeEventListener?.("change", on);
     }
     return;
-  }, [uiTheme]);
+  }, [uiTheme, cfg?.ui?.themePreset]);
+
+  // Apply accent color from config (selected in builder's Step 4) to the whole app.
+  React.useEffect(() => {
+    applyAccent(cfg?.ui?.themePreset);
+  }, [cfg?.ui?.themePreset]);
 
   const supportedLangs = cfg?.i18n?.supportedLangs?.length ? cfg.i18n.supportedLangs : ["ja", "en"];
 
@@ -76,6 +105,8 @@ export function App() {
     const nextUi: UiLang = lang.toLowerCase().startsWith("en") ? "en" : "ja";
     setUiLang(nextUi);
   }
+
+  const previewBuilder = useAppStore(s => s.previewBuilder);
 
   return (
     <>
@@ -128,7 +159,20 @@ export function App() {
             </button>
           ) : null}
 
-          <Link className={"btn " + (loc.pathname.startsWith("/builder") ? "" : "primary")} to="/">{t(uiLang, "viewer")}</Link>
+          <button
+            className={"btn " + (loc.pathname.startsWith("/builder") ? "" : "primary")}
+            onClick={() => {
+              // When clicking "Viewer" from the builder, copy current builder state
+              // (including uploaded image blob URLs) to the viewer state so uploaded
+              // floor images are visible in the preview.
+              if (loc.pathname.startsWith("/builder")) {
+                try { previewBuilder(); } catch {}
+              }
+              navigate("/");
+            }}
+          >
+            {t(uiLang, "viewer")}
+          </button>
           {!isPublish ? (
             <Link className={"btn " + (loc.pathname.startsWith("/builder") ? "primary" : "")} to="/builder">{t(uiLang, "builder")}</Link>
           ) : null}
@@ -140,6 +184,7 @@ export function App() {
       </header>
 
       <PrivacyBanner />
+      <ToastHost />
 
       <Routes>
         <Route path="/" element={<ViewerPage />} />

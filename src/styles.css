@@ -584,7 +584,13 @@ textarea{
   color:var(--text);
   border:1px solid var(--line);
 }
-.leaflet-popup-content{color:var(--text)}
+.leaflet-popup-content{
+  color:var(--text);
+  max-width:280px !important;
+  max-height:320px;
+  overflow-y:auto;
+  margin:14px 16px;
+}
 .leaflet-popup-close-button{color:var(--muted)!important}
 .leaflet-container a{color:var(--accent)}
 
@@ -699,8 +705,25 @@ textarea{
 
 /* ── Responsive: builder on mobile ── */
 @media(max-width:640px){
-  .topbar{flex-wrap:wrap;padding:8px 10px;gap:8px}
-  .controls{justify-content:flex-end;width:100%}
+  .topbar{
+    flex-wrap:wrap;
+    padding:8px 10px;
+    gap:8px;
+    align-items:flex-start;
+  }
+  .topbar .brand{flex:1 1 auto;min-width:0}
+  .topbar .brand .title{font-size:15px;line-height:1.2}
+  .topbar .brand .subtitle{font-size:11px}
+  .topbar .brandLogo{max-height:32px;width:auto}
+  .controls{
+    justify-content:flex-end;
+    width:100%;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .controls .inlineLabel{font-size:11px}
+  .controls .inlineLabel select{padding:4px 6px;font-size:12px;max-width:120px}
+  .controls .btn{padding:6px 10px;font-size:12px}
   .grid2{grid-template-columns:1fr !important;gap:10px}
   .paneHeader{flex-direction:column;align-items:stretch;gap:8px}
   .paneHeader .row{flex-wrap:wrap}
@@ -747,20 +770,29 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   z-index:500;
 }
 .msf-floorBtn{
-  padding:6px 14px;
+  padding:7px 16px;
   border-radius:8px;
-  border:1px solid var(--line);
+  border:2px solid var(--line);
   background:var(--btn);
   color:var(--text);
-  font-size:12px;font-weight:700;
+  font-size:13px;font-weight:800;
   cursor:pointer;
   transition:all .12s;
+  letter-spacing:0.02em;
 }
-.msf-floorBtn:hover{background:var(--btn2)}
+.msf-floorBtn:hover{
+  background:var(--btn2);
+  border-color:color-mix(in srgb, var(--accent) 50%, var(--line));
+}
 .msf-floorBtn.active{
   background:var(--accent);
-  color:#000;
+  color:#fff;
   border-color:var(--accent);
+  box-shadow:0 2px 8px color-mix(in srgb, var(--accent) 40%, transparent);
+  transform:translateY(-1px);
+}
+:root[data-theme="light"] .msf-floorBtn.active{
+  color:#fff;
 }
 
 /* ── Builder utility classes (replacing inline styles) ── */
@@ -790,3 +822,17 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .cardInner{padding:10px 12px;background:var(--card2);border-radius:12px;border:1px solid var(--line)}
 .btnSmall{padding:2px 8px;font-size:12px}
 .errorText{margin-top:8px;color:#f66}
+
+/* ── More builder utility classes (Fix #12 — reduce inline styles) ── */
+.dispBlock{display:block}
+.btnBetween{justify-content:space-between;align-items:end}
+.gap6w{gap:6px;flex-wrap:wrap}
+.gap8w{gap:8px;flex-wrap:wrap}
+.btnSm{padding:2px 8px;font-size:12px}
+.w160{width:160px}
+.p12{padding:12px}
+.fw800{font-weight:800}
+.errorTextSm{margin-top:8px;color:#f66}
+.ml8{margin-left:8px}
+.m0{margin:0}
+.btnMd{font-size:13px;padding:6px 14px}

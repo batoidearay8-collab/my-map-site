@@ -43,7 +43,7 @@ export function PrivacyBanner() {
             aria-label={t(uiLang, "privacy_dismiss")}
             title={t(uiLang, "privacy_dismiss")}
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         ) : null}
       </div>

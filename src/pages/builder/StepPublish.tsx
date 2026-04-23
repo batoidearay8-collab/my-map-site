@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "../../components/ToastHost";
 import { exportContentZip, exportSiteZip, downloadBlob, type ThemePreset } from "../../lib/export";
 import { t } from "../../lib/i18n";
 import { QrModal } from "../../components/QrModal";
@@ -94,7 +95,7 @@ export function StepPublish(props: BuilderContext) {
             </code>
             <button className="btn soft" onClick={() => {
               const code = `<iframe src="YOUR_URL/#/" width="100%" height="600" frameborder="0" allow="geolocation"></iframe>`;
-              navigator.clipboard?.writeText(code).then(() => alert(t(uiLang, "copied"))).catch(() => {});
+              navigator.clipboard?.writeText(code).then(() => toast.success(t(uiLang, "copied"))).catch(() => {});
             }}>
               {t(uiLang, "copy_embed_code")}
             </button>

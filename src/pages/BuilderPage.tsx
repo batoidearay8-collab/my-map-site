@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "../components/ToastHost";
 import { useLocation } from "react-router-dom";
 import * as L from "leaflet";
 import JSZip from "jszip";
@@ -12,7 +13,7 @@ import { MapView } from "../components/MapView";
 import { DetailsModal } from "../components/DetailsModal";
 import { FloorSelector } from "../components/FloorSelector";
 import { QrModal } from "../components/QrModal";
-import { compressImage, guessImagePath } from "../lib/image";
+import { compressImage, guessImagePath, ImageTooLargeError, formatBytes, MAX_INPUT_IMAGE_BYTES } from "../lib/image";
 import { exportContentZip, exportSiteZip, downloadBlob, type ThemePreset } from "../lib/export";
 import { poisToGeoJson, geoJsonToPois, geoJsonToString } from "../lib/geojson";
 import { pickPoiName, pickCategoryLabel } from "../lib/contentText";
@@ -40,6 +41,28 @@ const MARKER_TYPES: MarkerType[] = ["pin", "dot", "badge", "ring", "square", "he
 
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
+}
+
+/** Fix #6: Wraps compressImage with user-friendly error handling. Returns null on failure. */
+async function safeCompressImage(
+  file: File,
+  maxWidthOrHeight: number,
+  uiLang: "ja" | "en"
+): Promise<File | null> {
+  try {
+    return await compressImage(file, maxWidthOrHeight);
+  } catch (err: any) {
+    if (err instanceof ImageTooLargeError) {
+      toast.error(uiLang === "ja"
+        ? `画像が大きすぎます（${formatBytes(err.sizeBytes)}）。最大サイズは${formatBytes(err.maxBytes)}です。`
+        : `Image too large (${formatBytes(err.sizeBytes)}). Maximum is ${formatBytes(err.maxBytes)}.`);
+    } else {
+      toast.error(uiLang === "ja"
+        ? `画像の処理に失敗しました: ${err?.message || err}`
+        : `Failed to process image: ${err?.message || err}`);
+    }
+    return null;
+  }
 }
 function round4(v: number): number {
   return Math.round(v * 10000) / 10000;
@@ -255,24 +278,137 @@ const onUndo = useCallback(() => {
   ] as const;
 
   // ② テンプレートプレビュー
-  const TEMPLATE_PREVIEWS: Record<string, { ja: string; en: string; needs: string[]; icon: string }> = {
-    tourism:       { ja: "観光マップ",   en: "Tourism",       needs: ["お土産", "駅", "飯屋"],             icon: "🏯" },
-    live:          { ja: "ライブ",       en: "Live event",    needs: ["ホテル", "駅", "飯屋"],             icon: "🎤" },
-    convenience:   { ja: "便利マップ",   en: "Convenience",   needs: [],                                   icon: "🗺️" },
-    festival:      { ja: "祭り",         en: "Festival",      needs: ["駐車場", "トイレ", "救護"],         icon: "🎆" },
-    school_festival:{ ja: "文化祭",      en: "School fest",   needs: ["スケジュール", "展示", "食べ物"],   icon: "🏫" },
-    disaster:      { ja: "防災",         en: "Disaster",      needs: ["AED", "避難所", "給水所"],         icon: "🚨" },
-    outdoor_activity:{ ja: "アウトドア", en: "Outdoor",       needs: ["給水所", "コンビニ", "駐車場"],    icon: "🏕️" },
+  /**
+   * Template presets. Each defines:
+   * - ja/en: display label
+   * - icon: preview emoji
+   * - needs: recommended category keys (for "reco" feature)
+   * - categories: full category objects to auto-create when user picks the template
+   */
+  const TEMPLATE_PREVIEWS: Record<string, {
+    ja: string;
+    en: string;
+    needs: string[];
+    icon: string;
+    categories: Array<{ category: string; label: string; labelEn?: string; icon: string; color: string }>
+  }> = {
+    tourism: {
+      ja: "観光マップ", en: "Tourism", icon: "🏯",
+      needs: ["お土産", "駅", "飯屋"],
+      categories: [
+        { category: "お土産", label: "お土産", labelEn: "Souvenir", icon: "🎁", color: "#e67e22" },
+        { category: "駅", label: "駅", labelEn: "Station", icon: "🚉", color: "#3498db" },
+        { category: "飯屋", label: "飯屋", labelEn: "Restaurant", icon: "🍽️", color: "#e74c3c" },
+        { category: "観光地", label: "観光地", labelEn: "Sightseeing", icon: "🏯", color: "#9b59b6" },
+      ],
+    },
+    live: {
+      ja: "ライブ", en: "Live event", icon: "🎤",
+      needs: ["ホテル", "駅", "飯屋"],
+      categories: [
+        { category: "会場", label: "会場", labelEn: "Venue", icon: "🎤", color: "#e74c3c" },
+        { category: "ホテル", label: "ホテル", labelEn: "Hotel", icon: "🏨", color: "#3498db" },
+        { category: "駅", label: "駅", labelEn: "Station", icon: "🚉", color: "#2ecc71" },
+        { category: "飯屋", label: "飯屋", labelEn: "Restaurant", icon: "🍽️", color: "#f39c12" },
+      ],
+    },
+    convenience: {
+      ja: "便利マップ", en: "Convenience", icon: "🗺️",
+      needs: [],
+      categories: [
+        { category: "一般", label: "一般", labelEn: "General", icon: "📍", color: "#6ea8fe" },
+      ],
+    },
+    festival: {
+      ja: "祭り", en: "Festival", icon: "🎆",
+      needs: ["駐車場", "トイレ", "救護"],
+      categories: [
+        { category: "屋台", label: "屋台", labelEn: "Food stall", icon: "🍡", color: "#e74c3c" },
+        { category: "駐車場", label: "駐車場", labelEn: "Parking", icon: "🅿️", color: "#3498db" },
+        { category: "トイレ", label: "トイレ", labelEn: "Toilet", icon: "🚻", color: "#95a5a6" },
+        { category: "救護", label: "救護", labelEn: "First aid", icon: "🚑", color: "#e74c3c" },
+      ],
+    },
+    school_festival: {
+      ja: "文化祭", en: "School fest", icon: "🏫",
+      needs: ["スケジュール", "展示", "食べ物"],
+      categories: [
+        { category: "展示", label: "展示", labelEn: "Exhibit", icon: "🎨", color: "#9b59b6" },
+        { category: "食べ物", label: "食べ物", labelEn: "Food", icon: "🍱", color: "#e67e22" },
+        { category: "ステージ", label: "ステージ", labelEn: "Stage", icon: "🎭", color: "#e74c3c" },
+        { category: "トイレ", label: "トイレ", labelEn: "Toilet", icon: "🚻", color: "#95a5a6" },
+      ],
+    },
+    disaster: {
+      ja: "防災", en: "Disaster", icon: "🚨",
+      needs: ["AED", "避難所", "給水所"],
+      categories: [
+        { category: "避難所", label: "避難所", labelEn: "Shelter", icon: "🏫", color: "#2ecc71" },
+        { category: "AED", label: "AED", labelEn: "AED", icon: "❤️", color: "#e74c3c" },
+        { category: "給水所", label: "給水所", labelEn: "Water station", icon: "💧", color: "#3498db" },
+        { category: "医療", label: "医療", labelEn: "Medical", icon: "🏥", color: "#e74c3c" },
+      ],
+    },
+    outdoor_activity: {
+      ja: "アウトドア", en: "Outdoor", icon: "🏕️",
+      needs: ["給水所", "コンビニ", "駐車場"],
+      categories: [
+        { category: "キャンプ場", label: "キャンプ場", labelEn: "Campsite", icon: "🏕️", color: "#27ae60" },
+        { category: "コンビニ", label: "コンビニ", labelEn: "Convenience", icon: "🏪", color: "#3498db" },
+        { category: "駐車場", label: "駐車場", labelEn: "Parking", icon: "🅿️", color: "#95a5a6" },
+        { category: "給水所", label: "給水所", labelEn: "Water", icon: "💧", color: "#3498db" },
+      ],
+    },
   };
+
   const [selectedTemplate, setSelectedTemplate] = useState<string>(
     builderConfig?.template ?? "tourism"
   );
+
+  // Fix #3: Sync selectedTemplate when config template changes (e.g., ZIP import)
+  useEffect(() => {
+    const cfgTmpl = builderConfig?.template;
+    if (cfgTmpl && cfgTmpl !== selectedTemplate) {
+      setSelectedTemplate(cfgTmpl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [builderConfig?.template]);
+
   const applyTemplate = (tmpl: string) => {
     setSelectedTemplate(tmpl);
     const info = TEMPLATE_PREVIEWS[tmpl];
     if (!info) return;
-    const needs = info.needs;
-    setBuilderConfig({ ...cfg, template: tmpl as AppConfig["template"], reco: { needs, rules: (cfg.reco?.rules ?? {}) } });
+
+    // Auto-create categories from the template if current categories are empty
+    // or the user confirms replacement
+    const hasExistingCats = builderCategories.length > 0;
+    let applyCategories = !hasExistingCats;
+    if (hasExistingCats && info.categories.length > 0) {
+      applyCategories = window.confirm(uiLang === "ja"
+        ? `「${info.ja}」テンプレートのカテゴリを追加しますか？\n既存のカテゴリは残ります。`
+        : `Add categories from the "${info.en}" template?\nExisting categories will be kept.`);
+    }
+
+    if (applyCategories) {
+      const existingKeys = new Set(builderCategories.map(c => c.category));
+      let orderBase = builderCategories.length;
+      const newCats = info.categories
+        .filter(c => !existingKeys.has(c.category))
+        .map((c, idx) => ({
+          category: c.category,
+          label: c.label,
+          labelI18n: c.labelEn ? { ja: c.label, en: c.labelEn } : { ja: c.label },
+          icon: c.icon,
+          order: orderBase + idx + 1,
+          markerType: "pin" as const,
+          markerColor: c.color,
+        }));
+      const mergedCats = [...builderCategories, ...newCats];
+      setBuilderData(builderPois, mergedCats);
+      setCatsCsv(categoriesToCsv(mergedCats, supportedLangs, defaultLang));
+    }
+
+    setBuilderConfig({ ...cfg, template: tmpl as AppConfig["template"], reco: { needs: info.needs, rules: (cfg.reco?.rules ?? {}) } });
   };
 
   // Keep step in sync when switching between normal / import flow.
@@ -382,10 +518,21 @@ const onUndo = useCallback(() => {
   const [importOk, setImportOk] = useState(false);
   const [importMsg, setImportMsg] = useState<string>("");
   // Publish (step 4): color template for the full site zip
-  const [publishTheme, setPublishTheme] = useState<ThemePreset>("blue");
+  const [publishTheme, setPublishTheme] = useState<ThemePreset>(
+    (cfg?.ui?.themePreset ?? "blue") as ThemePreset
+  );
+
+  // Fix #2: Sync publishTheme when config changes (e.g., ZIP import loaded new theme)
+  useEffect(() => {
+    const cfgTheme = cfg?.ui?.themePreset;
+    if (cfgTheme && cfgTheme !== publishTheme) {
+      setPublishTheme(cfgTheme as ThemePreset);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg?.ui?.themePreset]);
   const [exportLoading, setExportLoading] = useState<string>(""); // "" = idle, else = loading message
 
-  // Apply selected publish color template as a live preview (affects Viewer as well).
+  // Apply selected publish color template globally (persists to config & viewer).
   useEffect(() => {
     const map: Record<string, string> = {
       blue: "#6ea8fe",
@@ -396,10 +543,19 @@ const onUndo = useCallback(() => {
     };
     const accent = map[publishTheme] || map.blue;
     document.documentElement.style.setProperty("--accent", accent);
-    return () => {
-      document.documentElement.style.removeProperty("--accent");
-    };
+    // Do NOT remove the property on cleanup — we want the theme to persist
+    // across navigation between builder and viewer.
   }, [publishTheme]);
+
+  // Persist theme choice to the config so it survives reloads and applies in viewer
+  useEffect(() => {
+    if (!cfg) return;
+    if (cfg.ui?.themePreset === publishTheme) return;
+    setBuilderConfig({
+      ...cfg,
+      ui: { ...(cfg.ui ?? { tabTitle: "AtlasKobo — 地図サイト制作キット" }), themePreset: publishTheme }
+    });
+  }, [publishTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Local preview URLs for uploaded images (so changes are visible immediately)
   const [floorPreviewUrl, setFloorPreviewUrl] = useState<string>("");
@@ -937,7 +1093,7 @@ const onUndo = useCallback(() => {
           <section className="pane">
             <div className="paneHeader">
               <div className="sectionTitleOnly">{t(uiLang, "builder")}</div>
-              <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+              <div className="row gap6w">
                 <button className="btn primary" onClick={() => setStep(0)}>{t(uiLang, "step_import")}</button>
               </div>
             </div>
@@ -963,7 +1119,7 @@ const onUndo = useCallback(() => {
                   {importedName ? <div className="hint mt8">{importedName}</div> : null}
                   {importState === "loading" ? <div className="hint mt8">{uiLang === "ja" ? "読み込み中…" : "Importing…"}</div> : null}
                   {importState === "done" ? <div className="hint mt8">{t(uiLang, "import_loaded")}</div> : null}
-                  {importState === "error" && importError ? <div className="hint" style={{ marginTop: 8, color: "#f66" }}>{importError}</div> : null}
+                  {importState === "error" && importError ? <div className="hint errorTextSm">{importError}</div> : null}
                 </div>
               </div>
             </div>
@@ -1019,10 +1175,13 @@ const onUndo = useCallback(() => {
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div style={{ fontWeight: 900, fontSize: 18 }}>{txt.title}</div>
-                <button onClick={dismissTutorial} style={{
+                <button onClick={dismissTutorial}
+                  aria-label={uiLang === "ja" ? "閉じる" : "Close"}
+                  title={uiLang === "ja" ? "閉じる" : "Close"}
+                  style={{
                   background: "transparent", border: "none", color: "var(--muted)",
                   fontSize: 20, cursor: "pointer", lineHeight: 1, padding: "0 4px",
-                }}>✕</button>
+                }}><span aria-hidden="true">✕</span></button>
               </div>
               <div style={{ color: "var(--muted)", lineHeight: 1.7, marginBottom: 20, fontSize: 14 }}>{txt.body}</div>
               {/* progress dots */}
@@ -1036,7 +1195,7 @@ const onUndo = useCallback(() => {
                 ))}
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <button className="btn soft" onClick={dismissTutorial} className="fs13">
+                <button className="btn soft fs13" onClick={dismissTutorial}>
                   {uiLang === "ja" ? "スキップ" : "Skip"}
                 </button>
                 <button className="btn primary" onClick={() => {
@@ -1057,7 +1216,7 @@ const onUndo = useCallback(() => {
         <div className="paneHeader">
           <div className="sectionTitleOnly">{t(uiLang, "builder")}</div>
 
-          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+          <div className="row gap6w">
             {importFlow ? (
               <button className={"btn " + (step === 0 ? "primary" : "")} onClick={() => setStep(0)}>{t(uiLang, "step_import")}</button>
             ) : null}
@@ -1098,7 +1257,7 @@ const onUndo = useCallback(() => {
               {importedName ? <div className="hint mt8">{importedName}</div> : null}
               {importState === "loading" ? <div className="hint mt8">{uiLang === "ja" ? "読み込み中…" : "Importing…"}</div> : null}
               {importState === "done" ? <div className="hint mt8">{t(uiLang, "import_loaded")}</div> : null}
-              {importState === "error" && importError ? <div className="hint" style={{ marginTop: 8, color: "#f66" }}>{importError}</div> : null}
+              {importState === "error" && importError ? <div className="hint errorTextSm">{importError}</div> : null}
 
               <div className="row" style={{ justifyContent: "flex-end", marginTop: 12 }}>
                 <button className={"btn " + (importState === "done" ? "primary" : "soft")} onClick={() => setStep(1)} disabled={importState !== "done"}>
@@ -1285,7 +1444,7 @@ const onUndo = useCallback(() => {
         {step === 2 ? (
           <div className="cards">
             <div className="card">
-              <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
+              <div className="row btnBetween">
                 <div>
                   <div className="sectionTitleOnly">{t(uiLang, "edit_data_title")}</div>
                   <div className="hint">{t(uiLang, "edit_data_hint")}</div>
@@ -1300,7 +1459,7 @@ const onUndo = useCallback(() => {
                 <>
                 <div className="grid2 mt10">
                   {/* POI list + form */}
-                  <div className="card" style={{ padding: 12 }}>
+                  <div className="card p12">
                     <div style={{ fontWeight: 900, marginBottom: 8 }}>{t(uiLang, "pois_easy_title")}</div>
 
                     <div className="row" style={{ gap: 8 }}>
@@ -1324,7 +1483,7 @@ const onUndo = useCallback(() => {
                           onClick={() => setSelectedPoiId(p.id)}
                           type="button"
                         >
-                          <div style={{ fontWeight: 800 }}>{pickPoiName(p, effectiveContentLang)}</div>
+                          <div className="fw800">{pickPoiName(p, effectiveContentLang)}</div>
                           <div className="hint">{p.id}</div>
                         </button>
                       ))}
@@ -1332,7 +1491,7 @@ const onUndo = useCallback(() => {
                     </div>
                   </div>
 
-                  <div className="card" style={{ padding: 12 }}>
+                  <div className="card p12">
                     <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
                       <div className="sectionTitleOnly">{uiLang === "ja" ? "地点の編集" : "Edit place"}</div>
                       {selectedPoi ? (
@@ -1346,11 +1505,11 @@ const onUndo = useCallback(() => {
                           {t(uiLang, "field_id")}
                           <input
                             value={poiIdDraft}
+                            tabIndex={9}
                             onChange={(e) => { setPoiIdDraft(e.target.value); setPoiIdError(""); }}
                             onBlur={commitPoiId}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
-                                // commit on Enter by blurring (keeps behavior consistent)
                                 (e.currentTarget as HTMLInputElement).blur();
                               }
                             }}
@@ -1360,7 +1519,7 @@ const onUndo = useCallback(() => {
 
                         <label>
                           {t(uiLang, "field_category")}
-                          <select value={selectedPoi.category} onChange={(e) => updatePoi(selectedPoi.id, { category: e.target.value })}>
+                          <select tabIndex={3} value={selectedPoi.category} onChange={(e) => updatePoi(selectedPoi.id, { category: e.target.value })}>
                             {ensureDefaultCategory(uiLang, builderCategories).map(c => (
                               <option key={c.category} value={c.category}>
                                 {(c.icon ? `${c.icon} ` : "") + pickCategoryLabel(c, effectiveContentLang)}
@@ -1372,6 +1531,7 @@ const onUndo = useCallback(() => {
                         <label>
                           {t(uiLang, "field_name_ja")}
                           <input
+                            tabIndex={1}
                             value={selectedPoi.name}
                             onChange={(e) => updatePoi(selectedPoi.id, { name: e.target.value })}
                           />
@@ -1380,6 +1540,7 @@ const onUndo = useCallback(() => {
                         <label>
                           {t(uiLang, "field_name_en")}
                           <input
+                            tabIndex={2}
                             value={(selectedPoi.nameI18n ?? {}).en ?? ""}
                             onChange={(e) => updatePoi(selectedPoi.id, { nameI18n: { ...(selectedPoi.nameI18n ?? {}), en: e.target.value } })}
                           />
@@ -1447,17 +1608,17 @@ const onUndo = useCallback(() => {
       <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.8 }}>
         {uiLang === "ja" ? (
           <>
-            <span style={{ display: "block" }}>• 通常: <code>10:00-18:00</code></span>
-            <span style={{ display: "block" }}>• 曜日別: <code>月-金 10:00-20:00、土日 11:00-18:00</code></span>
-            <span style={{ display: "block" }}>• 24時間: <code>24時間</code></span>
-            <span style={{ display: "block" }}>• 定休日: <code>水</code> / <code>月,火</code> / <code>月-金</code> / 定休なし→空欄</span>
+            <span className="dispBlock">• 通常: <code>10:00-18:00</code></span>
+            <span className="dispBlock">• 曜日別: <code>月-金 10:00-20:00、土日 11:00-18:00</code></span>
+            <span className="dispBlock">• 24時間: <code>24時間</code></span>
+            <span className="dispBlock">• 定休日: <code>水</code> / <code>月,火</code> / <code>月-金</code> / 定休なし→空欄</span>
           </>
         ) : (
           <>
-            <span style={{ display: "block" }}>• Regular: <code>10:00-18:00</code></span>
-            <span style={{ display: "block" }}>• By day: <code>Mon-Fri 10:00-20:00, Sat-Sun 11:00-18:00</code></span>
-            <span style={{ display: "block" }}>• 24h: <code>24h</code></span>
-            <span style={{ display: "block" }}>• Closed day: <code>Wed</code> / <code>Mon,Tue</code> / no closed day → leave blank</span>
+            <span className="dispBlock">• Regular: <code>10:00-18:00</code></span>
+            <span className="dispBlock">• By day: <code>Mon-Fri 10:00-20:00, Sat-Sun 11:00-18:00</code></span>
+            <span className="dispBlock">• 24h: <code>24h</code></span>
+            <span className="dispBlock">• Closed day: <code>Wed</code> / <code>Mon,Tue</code> / no closed day → leave blank</span>
           </>
         )}
       </div>
@@ -1497,10 +1658,9 @@ const onUndo = useCallback(() => {
                               <label>
                                 {t(uiLang, "floor_select")}
                                 <select
-                                  value={selectedPoi.floor ?? ""}
+                                  value={selectedPoi.floor || (cfg.indoor.floors ?? [])[0]?.id || ""}
                                   onChange={(e) => updatePoi(selectedPoi.id, { floor: e.target.value })}
                                 >
-                                  <option value="">{(cfg.indoor.floors ?? [])[0]?.label || (cfg.indoor.floors ?? [])[0]?.id || "—"} {t(uiLang, "floor_default")}</option>
                                   {(cfg.indoor.floors ?? []).map(f => (
                                     <option key={f.id} value={f.id}>{f.label || f.id}</option>
                                   ))}
@@ -1522,7 +1682,7 @@ const onUndo = useCallback(() => {
 
                   {/* Categories */}
                   <div className="card" style={{ padding: 12, gridColumn: "1 / -1" }}>
-                    <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
+                    <div className="row btnBetween">
                       <div>
                         <div className="sectionTitleOnly">{t(uiLang, "cats_easy_title")}</div>
                         <div className="hint">{uiLang === "ja" ? "マーカーの形や色もここで選べます。" : "Choose marker type and color here."}</div>
@@ -1536,11 +1696,11 @@ const onUndo = useCallback(() => {
                         // fields for ja/en, regardless of which is default.
                         const labelJa = (c.labelI18n?.ja ?? (defaultLang === "ja" ? (c.label ?? "") : "")) ?? "";
                         const labelEn = (c.labelI18n?.en ?? (defaultLang === "en" ? (c.label ?? "") : "")) ?? "";
-                        const color = c.markerColor || "#6ea8fe";
+                        const color = c.markerColor || "";  // empty = default (handled by ColorButton)
                         return (
                           <div key={c.category} className="row" style={{ justifyContent: "space-between", gap: 10, padding: "8px 0", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                             <div style={{ minWidth: 240 }}>
-                              <div style={{ fontWeight: 800 }}>{(c.icon ? `${c.icon} ` : "")}{labelJa || c.category}</div>
+                              <div className="fw800">{(c.icon ? `${c.icon} ` : "")}{labelJa || c.category}</div>
                               <div className="hint">{c.category}</div>
                             </div>
 
@@ -1555,7 +1715,7 @@ const onUndo = useCallback(() => {
                                     if (defaultLang === "ja") updateCategory(c.category, { label: v, labelI18n: nextI18n });
                                     else updateCategory(c.category, { labelI18n: nextI18n });
                                   }}
-                                  style={{ width: 160 }}
+                                  className="w160"
                                 />
                               </label>
                               <label className="row" style={{ gap: 6 }}>
@@ -1568,7 +1728,7 @@ const onUndo = useCallback(() => {
                                     if (defaultLang === "en") updateCategory(c.category, { label: v, labelI18n: nextI18n });
                                     else updateCategory(c.category, { labelI18n: nextI18n });
                                   }}
-                                  style={{ width: 160 }}
+                                  className="w160"
                                 />
                               </label>
                               <label className="row" style={{ gap: 6 }}>
@@ -1600,7 +1760,7 @@ const onUndo = useCallback(() => {
                   <div className="hint">{uiLang === "ja" ? "Ctrl/⌘+Enter: CSVに反映 / Ctrl/⌘+Shift+Enter: プレビュー更新" : "Ctrl/⌘+Enter: Write to CSV / Ctrl/⌘+Shift+Enter: Update preview"}</div>
                   <div className="grid2 mt10">
                     <div>
-                      <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
+                      <div className="row btnBetween">
                         <div className="sectionTitleOnly">{t(uiLang, "pois_csv")}</div>
                         <button className="btn" onClick={() => setPoisCsv(examplePoisCsv())}>{t(uiLang, "fill_sample")}</button>
                       </div>
@@ -1609,7 +1769,7 @@ const onUndo = useCallback(() => {
                     </div>
 
                     <div>
-                      <div className="row" style={{ justifyContent: "space-between", alignItems: "end" }}>
+                      <div className="row btnBetween">
                         <div className="sectionTitleOnly">{t(uiLang, "cats_csv")}</div>
                         <button className="btn" onClick={() => setCatsCsv(exampleCategoriesCsv())}>{t(uiLang, "fill_sample")}</button>
                       </div>
@@ -1630,7 +1790,7 @@ const onUndo = useCallback(() => {
               <div className="card">
                 <div className="sectionTitleSm">{uiLang === "ja" ? "GeoJSON 読み込み / 書き出し" : "GeoJSON import / export"}</div>
                 <div className="hint mb10">{t(uiLang, "geojson_hint")}</div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <div className="row gap8w">
                   <label className="btn" style={{ cursor: "pointer" }}>
                     {t(uiLang, "import_geojson")}
                     <input
@@ -1645,18 +1805,18 @@ const onUndo = useCallback(() => {
                           const geojson = JSON.parse(text);
                           const imported = geoJsonToPois(geojson);
                           if (!imported.length) {
-                            alert(uiLang === "ja" ? "地点が見つかりませんでした。" : "No places found in the file.");
+                            toast.error(uiLang === "ja" ? "地点が見つかりませんでした。" : "No places found in the file.");
                             return;
                           }
                           const merged = [...imported, ...builderPois];
                           const cats = ensureDefaultCategory(uiLang, builderCategories);
                           setBuilderData(merged, cats);
                           setPoisCsv(poisToCsv(merged, supportedLangs, defaultLang));
-                          alert(
+                          toast.success(
                             (uiLang === "ja" ? `${imported.length}件の地点を読み込みました。` : `Imported ${imported.length} places.`)
                           );
                         } catch (err: any) {
-                          alert(uiLang === "ja" ? `読み込みエラー: ${err.message}` : `Import error: ${err.message}`);
+                          toast.error(uiLang === "ja" ? `読み込みエラー: ${err.message}` : `Import error: ${err.message}`);
                         }
                         e.target.value = "";
                       }}
@@ -1685,176 +1845,234 @@ const onUndo = useCallback(() => {
               {cfg.mode === "indoor" ? (
                 <div className="card mt8">
                   <div className="sectionTitleSm">{t(uiLang, "floor_manage_title")}</div>
-                  <div className="hint mb10">{t(uiLang, "floor_manage_hint")}</div>
 
-                  {/* Default / single floor image (always shown) */}
-                  <div style={{ padding: "10px 12px", background: "var(--card2)", borderRadius: 12, border: "1px solid var(--line)", marginBottom: 10 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>
-                      {uiLang === "ja" ? "デフォルトフロア画像" : "Default floor image"}
-                    </div>
-                    {(floorPreviewUrl || cfg.indoor.imageUrl) ? (
-                      <img
-                        src={floorPreviewUrl || publicUrl(cfg.indoor.imageUrl)}
-                        alt="floor preview"
-                        style={{ maxWidth: "100%", maxHeight: 180, objectFit: "contain", borderRadius: 10, border: "1px solid var(--line)", marginBottom: 8 }}
-                      />
-                    ) : null}
-                    <DropZone
-                      title={t(uiLang, "assets_floor_drop")}
-                      accept="image/*"
-                      onFiles={async (files) => {
-                        const f = files[0];
-                        if (!f) return;
-                        const out = await compressImage(f, 2200);
-                        setBuilderAsset("floor", "floor", out);
-                        let objUrl: string | null = null;
-                        try {
-                          objUrl = URL.createObjectURL(out);
-                          const img = new Image();
-                          const size = await new Promise<{ w: number; h: number }>((resolve, reject) => {
-                            img.onload = () => resolve({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
-                            img.onerror = () => reject(new Error("failed to read image size"));
-                            img.src = objUrl!;
-                          });
-                          setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, imageWidthPx: size.w, imageHeightPx: size.h } });
-                        } catch {} finally { if (objUrl) URL.revokeObjectURL(objUrl); }
+                  {/* Mode toggle: single floor vs multi-floor */}
+                  <div className="row mb10" style={{ gap: 6, padding: 4, background: "var(--card2)", borderRadius: 10, border: "1px solid var(--line)", display: "inline-flex" }}>
+                    <button
+                      type="button"
+                      className={"btn btnMd " + ((cfg.indoor.floors ?? []).length === 0 ? "primary" : "soft")}
+                      onClick={() => {
+                        if ((cfg.indoor.floors ?? []).length > 0) {
+                          if (!window.confirm(uiLang === "ja"
+                            ? "1フロアモードに切替えますか？追加したフロアは削除されます。"
+                            : "Switch to single-floor mode? Added floors will be removed.")) return;
+                          for (const k of Object.keys(builderAssets.floorFiles || {})) {
+                            removeBuilderAsset("floorMulti", k);
+                          }
+                          const cleared = builderPois.map(p => p.floor ? { ...p, floor: "" } : p);
+                          setBuilderData(cleared, builderCategories);
+                          setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors: [] } });
+                        }
                       }}
-                    />
-                    {builderAssets.floorFile ? (
-                      <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-                        <div className="hint">{builderAssets.floorFile.name} ({cfg.indoor.imageWidthPx}×{cfg.indoor.imageHeightPx}px)</div>
-                        <button className="btn danger" style={{ fontSize: 12, padding: "4px 10px" }} onClick={() => removeBuilderAsset("floor")}>{t(uiLang, "remove_floor")}</button>
-                      </div>
-                    ) : <div className="hint" style={{ marginTop: 6 }}>{t(uiLang, "assets_floor_hint")}</div>}
+                    >
+                      {uiLang === "ja" ? "🏢 1フロアのみ" : "🏢 Single floor"}
+                    </button>
+                    <button
+                      type="button"
+                      className={"btn btnMd " + ((cfg.indoor.floors ?? []).length > 0 ? "primary" : "soft")}
+                      onClick={() => {
+                        if ((cfg.indoor.floors ?? []).length === 0) {
+                          const floors = [
+                            { id: "1F", label: "1F", labelI18n: {}, imageUrl: cfg.indoor.imageUrl || "", imageWidthPx: cfg.indoor.imageWidthPx || 2000, imageHeightPx: cfg.indoor.imageHeightPx || 1200 },
+                            { id: "2F", label: "2F", labelI18n: {}, imageUrl: "", imageWidthPx: cfg.indoor.imageWidthPx || 2000, imageHeightPx: cfg.indoor.imageHeightPx || 1200 },
+                          ];
+                          if (builderAssets.floorFile) {
+                            setBuilderAsset("floorMulti", "1F", builderAssets.floorFile);
+                          }
+                          const withFloor = builderPois.map(p => ({ ...p, floor: "1F" }));
+                          setBuilderData(withFloor, builderCategories);
+                          setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                        }
+                      }}
+                    >
+                      {uiLang === "ja" ? "🏬 複数フロア" : "🏬 Multi-floor"}
+                    </button>
                   </div>
 
-                  {/* Multi-floor list */}
-                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, marginTop: 14 }}>
-                    {uiLang === "ja" ? "追加フロア（複数階対応）" : "Additional floors (multi-floor)"}
-                  </div>
-                  <div className="hint mb8">{t(uiLang, "floor_single_hint")}</div>
-
-                  {(cfg.indoor.floors ?? []).map((floor, fi) => {
-                    const floorFileForThis = builderAssets.floorFiles?.[floor.id];
-                    const previewUrl = floorPreviewUrls[floor.id] || "";
-                    return (
-                      <div key={floor.id} style={{
-                        padding: "10px 12px", background: "var(--card2)", borderRadius: 12,
-                        border: "1px solid var(--line)", marginBottom: 8,
-                      }}>
-                        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>
-                            {floor.label || floor.id} {fi === 0 ? <span className="badge">{t(uiLang, "floor_default")}</span> : null}
-                          </div>
-                          <div className="row" style={{ gap: 4 }}>
-                            {fi > 0 ? (
-                              <button className="btn soft" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => {
-                                const floors = [...(cfg.indoor.floors ?? [])];
-                                [floors[fi - 1], floors[fi]] = [floors[fi], floors[fi - 1]];
-                                setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
-                              }}>{t(uiLang, "floor_move_up")}</button>
-                            ) : null}
-                            {fi < (cfg.indoor.floors ?? []).length - 1 ? (
-                              <button className="btn soft" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => {
-                                const floors = [...(cfg.indoor.floors ?? [])];
-                                [floors[fi], floors[fi + 1]] = [floors[fi + 1], floors[fi]];
-                                setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
-                              }}>{t(uiLang, "floor_move_down")}</button>
-                            ) : null}
-                            <button className="btn danger" style={{ padding: "2px 8px", fontSize: 12 }} onClick={() => {
-                              const floors = (cfg.indoor.floors ?? []).filter((_, i) => i !== fi);
-                              setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
-                              removeBuilderAsset("floorMulti", floor.id);
-                            }}>{t(uiLang, "remove_floor")}</button>
-                          </div>
-                        </div>
-                        <div className="grid2" style={{ gap: 8 }}>
-                          <label className="fs12">
-                            {t(uiLang, "floor_id")}
-                            <input value={floor.id} onChange={(e) => {
-                              const newId = e.target.value.trim();
-                              if (!newId) return;
-                              const floors = [...(cfg.indoor.floors ?? [])];
-                              const oldId = floors[fi].id;
-                              floors[fi] = { ...floors[fi], id: newId };
-                              setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
-                              // Migrate file reference
-                              const existingFile = builderAssets.floorFiles?.[oldId];
-                              if (existingFile) {
-                                removeBuilderAsset("floorMulti", oldId);
-                                setBuilderAsset("floorMulti", newId, existingFile);
-                              }
-                              // Update POIs that reference oldId
-                              const updated = builderPois.map(p => p.floor === oldId ? { ...p, floor: newId } : p);
-                              if (updated.some((p, i) => p !== builderPois[i])) {
-                                setBuilderData(updated, builderCategories);
-                              }
-                            }} className="fs13" />
-                          </label>
-                          <label className="fs12">
-                            {t(uiLang, "floor_label_field")}
-                            <input value={floor.label ?? ""} onChange={(e) => {
-                              const floors = [...(cfg.indoor.floors ?? [])];
-                              floors[fi] = { ...floors[fi], label: e.target.value };
-                              setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
-                            }} placeholder={uiLang === "ja" ? "例: 1F, 2F, B1" : "e.g. 1F, 2F, B1"} className="fs13" />
-                          </label>
-                        </div>
-                        {/* Floor image upload */}
-                        <div className="mt8">
-                          {previewUrl ? (
-                            <img src={previewUrl} alt={floor.label || floor.id} style={{ maxWidth: "100%", maxHeight: 120, objectFit: "contain", borderRadius: 8, border: "1px solid var(--line)", marginBottom: 6 }} />
-                          ) : floor.imageUrl ? (
-                            <img src={publicUrl(floor.imageUrl)} alt={floor.label || floor.id} style={{ maxWidth: "100%", maxHeight: 120, objectFit: "contain", borderRadius: 8, border: "1px solid var(--line)", marginBottom: 6 }} />
-                          ) : null}
-                          <label className="btn soft" style={{ cursor: "pointer", fontSize: 12 }}>
-                            {floorFileForThis ? t(uiLang, "floor_image_set") : t(uiLang, "floor_image_upload")}
-                            <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (ev) => {
-                              const f = ev.target.files?.[0];
-                              if (!f) return;
-                              const out = await compressImage(f, 2200);
-                              setBuilderAsset("floorMulti", floor.id, out);
-                              // Auto-detect size
-                              let objUrl: string | null = null;
-                              try {
-                                objUrl = URL.createObjectURL(out);
-                                const img = new Image();
-                                const size = await new Promise<{ w: number; h: number }>((resolve, reject) => {
-                                  img.onload = () => resolve({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
-                                  img.onerror = () => reject(new Error("failed"));
-                                  img.src = objUrl!;
-                                });
-                                const floors = [...(cfg.indoor.floors ?? [])];
-                                floors[fi] = { ...floors[fi], imageWidthPx: size.w, imageHeightPx: size.h };
-                                setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
-                              } catch {} finally { if (objUrl) URL.revokeObjectURL(objUrl); }
-                              ev.target.value = "";
-                            }} />
-                          </label>
-                          {floorFileForThis ? (
-                            <span className="hint" style={{ marginLeft: 8 }}>{floorFileForThis.name}</span>
-                          ) : !floor.imageUrl ? (
-                            <span className="hint" style={{ marginLeft: 8 }}>{t(uiLang, "floor_image_none")}</span>
-                          ) : null}
-                        </div>
+                  {/* Single-floor mode */}
+                  {(cfg.indoor.floors ?? []).length === 0 ? (
+                    <div style={{ padding: "10px 12px", background: "var(--card2)", borderRadius: 12, border: "1px solid var(--line)" }}>
+                      <div className="hint mb8">
+                        {uiLang === "ja" ? "1枚のフロア画像を使います。フロア切替UIは表示されません。" : "Use a single floor image. No floor switcher will be shown."}
                       </div>
-                    );
-                  })}
+                      {(floorPreviewUrl || cfg.indoor.imageUrl) ? (
+                        <img
+                          src={floorPreviewUrl || publicUrl(cfg.indoor.imageUrl)}
+                          alt="floor preview"
+                          style={{ maxWidth: "100%", maxHeight: 180, objectFit: "contain", borderRadius: 10, border: "1px solid var(--line)", marginBottom: 8 }}
+                        />
+                      ) : null}
+                      <DropZone
+                        title={t(uiLang, "assets_floor_drop")}
+                        accept="image/*"
+                        onFiles={async (files) => {
+                          const f = files[0];
+                          if (!f) return;
+                          const out = await safeCompressImage(f, 2200, uiLang);
+                          if (!out) return;
+                          setBuilderAsset("floor", "floor", out);
+                          let objUrl: string | null = null;
+                          try {
+                            objUrl = URL.createObjectURL(out);
+                            const img = new Image();
+                            const size = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+                              img.onload = () => resolve({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
+                              img.onerror = () => reject(new Error("failed to read image size"));
+                              img.src = objUrl!;
+                            });
+                            setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, imageWidthPx: size.w, imageHeightPx: size.h } });
+                          } catch {} finally { if (objUrl) URL.revokeObjectURL(objUrl); }
+                        }}
+                      />
+                      {builderAssets.floorFile ? (
+                        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                          <div className="hint">{builderAssets.floorFile.name} ({cfg.indoor.imageWidthPx}×{cfg.indoor.imageHeightPx}px)</div>
+                          <button className="btn danger" style={{ fontSize: 12, padding: "4px 10px" }} onClick={() => removeBuilderAsset("floor")}>{t(uiLang, "remove_floor")}</button>
+                        </div>
+                      ) : <div className="hint" style={{ marginTop: 6 }}>{t(uiLang, "assets_floor_hint")}</div>}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="hint mb10">
+                        {uiLang === "ja"
+                          ? "複数フロアを管理します。各フロアごとに画像をアップロードしてください。"
+                          : "Manage multiple floors. Upload a separate image for each floor."}
+                      </div>
 
-                  <button className="btn" style={{ marginTop: 4 }} onClick={() => {
-                    const floors = [...(cfg.indoor.floors ?? [])];
-                    const nextNum = floors.length + 1;
-                    const id = `F${nextNum}`;
-                    floors.push({
-                      id,
-                      label: `${nextNum}F`,
-                      labelI18n: {},
-                      imageUrl: "",
-                      imageWidthPx: cfg.indoor.imageWidthPx || 2000,
-                      imageHeightPx: cfg.indoor.imageHeightPx || 1200,
-                    });
-                    setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
-                  }}>{t(uiLang, "add_floor")}</button>
+                      {(cfg.indoor.floors ?? []).map((floor, fi) => {
+                        const floorFileForThis = builderAssets.floorFiles?.[floor.id];
+                        const previewUrl = floorPreviewUrls[floor.id] || "";
+                        return (
+                          <div key={floor.id} style={{
+                            padding: "10px 12px", background: "var(--card2)", borderRadius: 12,
+                            border: "1px solid var(--line)", marginBottom: 8,
+                          }}>
+                            <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                              <div style={{ fontWeight: 700, fontSize: 13 }}>
+                                {floor.label || floor.id}
+                              </div>
+                              <div className="row" style={{ gap: 4 }}>
+                                {fi > 0 ? (
+                                  <button className="btn soft btnSm" onClick={() => {
+                                    const floors = [...(cfg.indoor.floors ?? [])];
+                                    [floors[fi - 1], floors[fi]] = [floors[fi], floors[fi - 1]];
+                                    setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                                  }}>{t(uiLang, "floor_move_up")}</button>
+                                ) : null}
+                                {fi < (cfg.indoor.floors ?? []).length - 1 ? (
+                                  <button className="btn soft btnSm" onClick={() => {
+                                    const floors = [...(cfg.indoor.floors ?? [])];
+                                    [floors[fi], floors[fi + 1]] = [floors[fi + 1], floors[fi]];
+                                    setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                                  }}>{t(uiLang, "floor_move_down")}</button>
+                                ) : null}
+                                {(cfg.indoor.floors ?? []).length > 1 ? (
+                                  <button className="btn danger btnSm" onClick={() => {
+                                    const floors = (cfg.indoor.floors ?? []).filter((_, i) => i !== fi);
+                                    setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                                    removeBuilderAsset("floorMulti", floor.id);
+                                  }}>{t(uiLang, "remove_floor")}</button>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className="grid2" style={{ gap: 8 }}>
+                              <label className="fs12">
+                                {t(uiLang, "floor_id")}
+                                <input value={floor.id} onChange={(e) => {
+                                  const newId = e.target.value.trim();
+                                  if (!newId) return;
+                                  const floors = [...(cfg.indoor.floors ?? [])];
+                                  const oldId = floors[fi].id;
+                                  if (newId === oldId) return;
+                                  // Fix #9: Reject duplicate floor IDs to prevent data loss
+                                  if (floors.some((f, i) => i !== fi && f.id === newId)) {
+                                    toast.info(uiLang === "ja"
+                                      ? `フロアID「${newId}」は既に使われています。`
+                                      : `Floor ID "${newId}" is already used.`);
+                                    return;
+                                  }
+                                  floors[fi] = { ...floors[fi], id: newId };
+                                  setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                                  // Migrate file reference (zustand setters run synchronously in sequence here)
+                                  const existingFile = builderAssets.floorFiles?.[oldId];
+                                  if (existingFile) {
+                                    removeBuilderAsset("floorMulti", oldId);
+                                    setBuilderAsset("floorMulti", newId, existingFile);
+                                  }
+                                  // Update POIs that reference oldId
+                                  const updated = builderPois.map(p => p.floor === oldId ? { ...p, floor: newId } : p);
+                                  if (updated.some((p, i) => p !== builderPois[i])) {
+                                    setBuilderData(updated, builderCategories);
+                                  }
+                                }} className="fs13" />
+                              </label>
+                              <label className="fs12">
+                                {t(uiLang, "floor_label_field")}
+                                <input value={floor.label ?? ""} onChange={(e) => {
+                                  const floors = [...(cfg.indoor.floors ?? [])];
+                                  floors[fi] = { ...floors[fi], label: e.target.value };
+                                  setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                                }} placeholder={uiLang === "ja" ? "例: 1F, 2F, B1" : "e.g. 1F, 2F, B1"} className="fs13" />
+                              </label>
+                            </div>
+                            <div style={{ marginTop: 8 }}>
+                              {previewUrl ? (
+                                <img src={previewUrl} alt={floor.label || floor.id} style={{ maxWidth: "100%", maxHeight: 120, objectFit: "contain", borderRadius: 8, border: "1px solid var(--line)", marginBottom: 6 }} />
+                              ) : floor.imageUrl ? (
+                                <img src={publicUrl(floor.imageUrl)} alt={floor.label || floor.id} style={{ maxWidth: "100%", maxHeight: 120, objectFit: "contain", borderRadius: 8, border: "1px solid var(--line)", marginBottom: 6 }} />
+                              ) : null}
+                              <label className="btn soft" style={{ cursor: "pointer", fontSize: 12 }}>
+                                {floorFileForThis ? t(uiLang, "floor_image_set") : t(uiLang, "floor_image_upload")}
+                                <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (ev) => {
+                                  const f = ev.target.files?.[0];
+                                  if (!f) return;
+                                  const out = await safeCompressImage(f, 2200, uiLang);
+                                  if (!out) return;
+                                  setBuilderAsset("floorMulti", floor.id, out);
+                                  let objUrl: string | null = null;
+                                  try {
+                                    objUrl = URL.createObjectURL(out);
+                                    const img = new Image();
+                                    const size = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+                                      img.onload = () => resolve({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
+                                      img.onerror = () => reject(new Error("failed"));
+                                      img.src = objUrl!;
+                                    });
+                                    const floors = [...(cfg.indoor.floors ?? [])];
+                                    floors[fi] = { ...floors[fi], imageWidthPx: size.w, imageHeightPx: size.h };
+                                    setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                                  } catch {} finally { if (objUrl) URL.revokeObjectURL(objUrl); }
+                                  ev.target.value = "";
+                                }} />
+                              </label>
+                              {floorFileForThis ? (
+                                <span className="hint ml8">{floorFileForThis.name}</span>
+                              ) : !floor.imageUrl ? (
+                                <span className="hint ml8">{t(uiLang, "floor_image_none")}</span>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <button className="btn" style={{ marginTop: 4 }} onClick={() => {
+                        const floors = [...(cfg.indoor.floors ?? [])];
+                        const existingIds = new Set(floors.map(f => f.id));
+                        let nextNum = floors.length + 1;
+                        while (existingIds.has(`${nextNum}F`)) nextNum++;
+                        const id = `${nextNum}F`;
+                        floors.push({
+                          id,
+                          label: id,
+                          labelI18n: {},
+                          imageUrl: "",
+                          imageWidthPx: cfg.indoor.imageWidthPx || 2000,
+                          imageHeightPx: cfg.indoor.imageHeightPx || 1200,
+                        });
+                        setBuilderConfig({ ...cfg, indoor: { ...cfg.indoor, floors } });
+                      }}>{t(uiLang, "add_floor")}</button>
+                    </>
+                  )}
                 </div>
               ) : null}
 
@@ -1866,7 +2084,8 @@ const onUndo = useCallback(() => {
                   multiple
                   onFiles={async (files) => {
                     for (const f of files) {
-                      const out = await compressImage(f, 1800);
+                      const out = await safeCompressImage(f, 1800, uiLang);
+                      if (!out) return;
                       const key = guessImagePath(out.name);
                       setBuilderAsset("image", key, out);
                     }
@@ -1889,7 +2108,7 @@ const onUndo = useCallback(() => {
                           )}
                           <div className="thumbMeta">
                             <div className="thumbName">{file.name}</div>
-                            <div className="hint" style={{ margin: 0 }}>{key}</div>
+                            <div className="hint m0">{key}</div>
                           </div>
                           <button className="btn danger" onClick={() => removeBuilderAsset("image", key)}>
                             {uiLang === "ja" ? "削除" : "Remove"}
@@ -2027,10 +2246,10 @@ const onUndo = useCallback(() => {
               ) : null}
 
               {previewTab === "issues" ? (
-                <div className={hasError ? "danger" : "ok"} className="mt10">
+                <div className={(hasError ? "danger" : "ok") + " mt10"}>
                   <div className="sectionTitle">{t(uiLang, "detect_errors_title")}</div>
                   {issues.length ? (
-                    <ul className="hint" style={{ margin: 0 }}>
+                    <ul className="hint m0">
                       {issues.slice(0, 40).map((i, idx) => (
                         <li key={idx}>{i.level.toUpperCase()}: {i.poiId ? `[${i.poiId}] ` : ""}{i.message[uiLang]}</li>
                       ))}
@@ -2063,7 +2282,7 @@ const onUndo = useCallback(() => {
 
               <div style={{ marginTop: 14 }}>
                 <div className="sectionTitle">{t(uiLang, "publish_color_templates")}</div>
-                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                <div className="row gap8w">
                   {([
                     { key: "blue", label: t(uiLang, "theme_blue"), color: "#6ea8fe" },
                     { key: "green", label: t(uiLang, "theme_green"), color: "#2fd4a3" },
@@ -2163,7 +2382,7 @@ const onUndo = useCallback(() => {
                     onClick={() => {
                       const code = `<iframe src="YOUR_URL/#/" width="100%" height="600" frameborder="0" allow="geolocation"></iframe>`;
                       navigator.clipboard?.writeText(code).then(() => {
-                        alert(t(uiLang, "copied"));
+                        toast.success(t(uiLang, "copied"));
                       }).catch(() => {});
                     }}
                   >
@@ -2203,9 +2422,17 @@ const onUndo = useCallback(() => {
 // Color button that shows selected color
 function ColorButton(props: { value: string; onChange: (v: string) => void }) {
   const { value, onChange } = props;
-  const safe = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#6ea8fe";
+  const isCustom = /^#[0-9a-fA-F]{6}$/.test(value);
+  const safe = isCustom ? value : "#6ea8fe";
   return (
-    <label className="colorBtn" style={{ background: safe }} title={safe}>
+    <label
+      className="colorBtn"
+      style={{
+        background: safe,
+        border: isCustom ? "2px solid var(--text)" : "2px dashed var(--muted)",
+      }}
+      title={isCustom ? safe : "default"}
+    >
       <input
         type="color"
         value={safe}

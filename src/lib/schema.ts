@@ -24,7 +24,8 @@ export const ConfigSchema = z.object({
   }).optional().default({ defaultLang: "ja", supportedLangs: ["ja", "en"] }),
   ui: z.object({
     tabTitle: z.string().default("AtlasKobo — 地図サイト制作キット"),
-  }).optional().default({ tabTitle: "AtlasKobo — 地図サイト制作キット" }),
+    themePreset: z.enum(["blue", "green", "orange", "purple", "red"]).default("blue"),
+  }).optional().default({ tabTitle: "AtlasKobo — 地図サイト制作キット", themePreset: "blue" }),
 
 
   /** Preferred theme for the published site (viewer can still override). */

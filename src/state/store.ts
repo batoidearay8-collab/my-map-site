@@ -41,6 +41,11 @@ type AppState = {
   builderCategories: Category[];
   builderAssets: BuilderAssets;
 
+  // Preview image overrides (blob URLs) for "見る" to show uploaded files without export
+  previewFloorUrl: string;           // single-floor mode
+  previewFloorUrls: Record<string, string>;  // multi-floor: floor id -> blob URL
+  previewImageUrls: Record<string, string>;  // POI images: public path -> blob URL
+
   // increments when the builder should reset its local UI state
   builderEpoch: number;
 
@@ -157,6 +162,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   builderAssets: { floorFiles: {}, images: {} },
 
   builderEpoch: 0,
+  previewFloorUrl: "",
+  previewFloorUrls: {},
+  previewImageUrls: {},
 
   builderUndo: null,
 
@@ -287,10 +295,36 @@ export const useAppStore = create<AppState>((set, get) => ({
   previewBuilder: () => {
     const cfg = get().builderConfig;
     if (!cfg) return;
+    const assets = get().builderAssets;
+
+    // Revoke any old preview URLs to avoid memory leaks
+    const oldState = get();
+    try { if (oldState.previewFloorUrl) URL.revokeObjectURL(oldState.previewFloorUrl); } catch {}
+    for (const u of Object.values(oldState.previewFloorUrls || {})) {
+      try { URL.revokeObjectURL(u); } catch {}
+    }
+    for (const u of Object.values(oldState.previewImageUrls || {})) {
+      try { URL.revokeObjectURL(u); } catch {}
+    }
+
+    // Create fresh blob URLs for all uploaded files
+    const previewFloorUrl = assets.floorFile ? URL.createObjectURL(assets.floorFile) : "";
+    const previewFloorUrls: Record<string, string> = {};
+    for (const [k, f] of Object.entries(assets.floorFiles || {})) {
+      try { previewFloorUrls[k] = URL.createObjectURL(f); } catch {}
+    }
+    const previewImageUrls: Record<string, string> = {};
+    for (const [k, f] of Object.entries(assets.images || {})) {
+      try { previewImageUrls[k] = URL.createObjectURL(f); } catch {}
+    }
+
     set({
       config: structuredClone(cfg),
       pois: structuredClone(get().builderPois),
-      categories: structuredClone(get().builderCategories)
+      categories: structuredClone(get().builderCategories),
+      previewFloorUrl,
+      previewFloorUrls,
+      previewImageUrls,
     });
   },
 
