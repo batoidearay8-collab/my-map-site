@@ -1,49 +1,67 @@
 /* ═══════════════════════════════════════════════════════
-   AtlasKobo — 公開サイト スタイルシート
-   ロゴ配色: ネイビー × グリーン × ゴールド
+   AtlasKobo v10.5 — 公開サイト
+   Shic & Luxury / モノトーン × ゴールド
    ═══════════════════════════════════════════════════════ */
 
 :root{
-  --bg:#0d1520;
-  --bg2:#0a1018;
-  --card:#132035;
-  --card2:#1a2a42;
-  --text:#d8eee6;
-  --muted:rgba(180,220,200,0.65);
-  --line:rgba(77,184,122,0.15);
-  --line2:rgba(77,184,122,0.28);
-  --shadow:0 8px 32px rgba(0,0,0,0.40);
-  --shadow-sm:0 2px 12px rgba(0,0,0,0.25);
-  --radius:18px;
-  --radius-sm:12px;
-  --accent:#4db87a;
-  --accent-dim:rgba(77,184,122,0.18);
-  --gold:#c9a84c;
-  --gold-dim:rgba(201,168,76,0.15);
-  --focusRing:rgba(77,184,122,0.30);
-  --iconTint:rgba(77,184,122,0.14);
-  --sheetBackdrop:rgba(5,10,18,0.65);
-  --topbar-h:62px;
+  color-scheme: dark;
+
+  --bg:        #0a0e14;
+  --bg2:       #11161e;
+  --card:      #11161e;
+  --card2:     #161c25;
+  --surface-3: #1c232e;
+  --text:      #f0ede4;
+  --muted:     #8a8478;
+  --line:      rgba(240,237,228,0.08);
+  --line2:     rgba(240,237,228,0.16);
+
+  --shadow:    0 12px 40px rgba(0,0,0,0.55);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+
+  --radius:    16px;
+  --radius-sm: 8px;
+
+  --accent:        #d4b87a;
+  --accent-dim:    rgba(212,184,122,0.12);
+  --accent-soft:   rgba(212,184,122,0.20);
+  --accent-text:   #0a0e14;
+  --gold:          #d4b87a;
+  --gold-dim:      rgba(212,184,122,0.15);
+  --focusRing:     rgba(212,184,122,0.30);
+  --iconTint:      rgba(212,184,122,0.14);
+  --sheetBackdrop: rgba(0,0,0,0.70);
+  --topbar-h:      62px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+  --font-display: -apple-system, "SF Pro Display", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
 }
 
 :root[data-theme="light"]{
-  --bg:#f4f8f2;
-  --bg2:#edf5eb;
-  --card:#ffffff;
-  --card2:#edf5eb;
-  --text:#0d2235;
-  --muted:#3d6055;
-  --line:rgba(46,139,87,0.16);
-  --line2:rgba(46,139,87,0.30);
-  --shadow:0 8px 32px rgba(13,34,53,0.10);
-  --shadow-sm:0 2px 10px rgba(13,34,53,0.08);
-  --accent:#2e8b57;
-  --accent-dim:rgba(46,139,87,0.12);
-  --gold:#a07c2a;
-  --gold-dim:rgba(160,124,42,0.12);
-  --focusRing:rgba(46,139,87,0.25);
-  --iconTint:rgba(46,139,87,0.12);
-  --sheetBackdrop:rgba(13,34,53,0.45);
+  color-scheme: light;
+
+  --bg:        #fafaf7;
+  --bg2:       #f4f2ec;
+  --card:      #ffffff;
+  --card2:     #f4f2ec;
+  --surface-3: #ebe8df;
+  --text:      #1a1814;
+  --muted:     #6a665d;
+  --line:      rgba(26,24,20,0.08);
+  --line2:     rgba(26,24,20,0.14);
+
+  --shadow:    0 12px 40px rgba(0,0,0,0.10);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+
+  --accent:        #b8973f;
+  --accent-dim:    rgba(184,151,63,0.10);
+  --accent-soft:   rgba(184,151,63,0.18);
+  --accent-text:   #ffffff;
+  --gold:          #b8973f;
+  --gold-dim:      rgba(184,151,63,0.15);
+  --focusRing:     rgba(184,151,63,0.30);
+  --iconTint:      rgba(184,151,63,0.14);
+  --sheetBackdrop: rgba(26,24,20,0.45);
 }
 
 *{ box-sizing:border-box; margin:0; padding:0; }
@@ -296,7 +314,7 @@ body.mapOnly .map{
   display:flex; align-items:center; justify-content:center;
   width:34px; height:34px; border-radius:14px;
   background:var(--accent); color:#fff; font-weight:900;
-  box-shadow:0 4px 14px rgba(77,184,122,0.4);
+  box-shadow:0 4px 14px color-mix(in srgb, var(--accent) 40%, transparent);
   border:2px solid rgba(255,255,255,0.3);
 }
 .marker.pin{ border-radius:16px 16px 16px 0; transform:rotate(-45deg); }
@@ -314,12 +332,12 @@ body.mapOnly .map{
 .locateCtrl{ background:transparent; border:0; box-shadow:none; }
 .locateCtrl .locateBtn{
   appearance:none;
-  border:1.5px solid color-mix(in srgb, var(--accent) 70%, black);
+  border:1.5px solid var(--accent);
   background:var(--accent); color:#fff;
   width:46px; height:46px; border-radius:999px;
   font-size:20px; cursor:pointer;
   display:flex; align-items:center; justify-content:center;
-  box-shadow:0 4px 16px rgba(77,184,122,0.45);
+  box-shadow:0 4px 16px color-mix(in srgb, var(--accent) 45%, transparent);
   transition:all .18s;
 }
 .locateCtrl .locateBtn:hover{ filter:brightness(1.08); transform:scale(1.05); }
@@ -329,7 +347,7 @@ body.mapOnly .map{
 .myPosDot{
   width:14px; height:14px; border-radius:999px;
   background:var(--accent); border:2.5px solid #fff;
-  box-shadow:0 0 0 6px rgba(77,184,122,0.25);
+  box-shadow:0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 /* ── Leaflet divIcon ── */
@@ -341,7 +359,7 @@ body.mapOnly .map{
   border:2px solid rgba(255,255,255,0.35);
   box-shadow:0 6px 16px rgba(0,0,0,0.28);
   display:flex; align-items:center; justify-content:center;
-  color:#0b1222; font-weight:900;
+  color: var(--accent-text, #0b1222); font-weight:700;
 }
 .poiIcon .m.isClosed{ opacity:.5; filter:grayscale(.8) saturate(.5); }
 .poiIcon .mStatus{

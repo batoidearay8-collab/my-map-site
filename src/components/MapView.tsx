@@ -142,7 +142,8 @@ function escapeHtml(s: string): string {
     .replaceAll("'", "&#039;");
 }
 
-const PALETTE = ["#6ea8fe", "#ff6b6b", "#f0ad4e", "#5cb85c", "#6f42c1", "#20c997", "#fd7e14", "#0dcaf0"];
+// v10.5 Luxury palette — muted tones that work on both dark and light maps
+const PALETTE = ["#d4b87a", "#9eb4d4", "#a3c4a1", "#c97862", "#b8a3c8", "#c9a588", "#8fa8a0", "#c1a584"];
 
 function hashString(s: string): number {
   let h = 0;

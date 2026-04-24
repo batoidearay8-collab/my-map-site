@@ -338,7 +338,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       icon: "📍",
       order: 1,
       markerType: "pin",
-      markerColor: "#6ea8fe"
+      markerColor: "#d4b87a"
     }];
 
     set({

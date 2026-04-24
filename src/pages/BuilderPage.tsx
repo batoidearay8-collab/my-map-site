@@ -152,7 +152,7 @@ function ensureDefaultCategory(uiLang: UiLang, cats: Category[]): Category[] {
     icon: "📍",
     order: 1,
     markerType: "pin",
-    markerColor: "#6ea8fe"
+    markerColor: "#d4b87a"
   }];
 }
 
@@ -534,15 +534,24 @@ const onUndo = useCallback(() => {
 
   // Apply selected publish color template globally (persists to config & viewer).
   useEffect(() => {
-    const map: Record<string, string> = {
-      blue: "#6ea8fe",
-      green: "#2fd4a3",
-      orange: "#ffb020",
-      purple: "#b39ddb",
-      red: "#ff6b6b",
+    const dark: Record<string, string> = {
+      blue:   "#9eb4d4",
+      green:  "#a3c4a1",
+      orange: "#d4b87a",
+      purple: "#b8a3c8",
+      red:    "#c97862",
     };
-    const accent = map[publishTheme] || map.blue;
-    document.documentElement.style.setProperty("--accent", accent);
+    const light: Record<string, string> = {
+      blue:   "#3d5a85",
+      green:  "#3a6e45",
+      orange: "#8a6a20",
+      purple: "#6d4f8a",
+      red:    "#8a3d28",
+    };
+    const theme = document.documentElement.getAttribute("data-theme") || "dark";
+    const map = theme === "light" ? light : dark;
+    const accent = map[publishTheme] || map.orange;
+    document.documentElement.style.setProperty("--accent", accent, "important");
     // Do NOT remove the property on cleanup — we want the theme to persist
     // across navigation between builder and viewer.
   }, [publishTheme]);
@@ -916,7 +925,7 @@ const onUndo = useCallback(() => {
       icon: "📍",
       order: n,
       markerType: "pin",
-      markerColor: "#6ea8fe",
+      markerColor: "#d4b87a",
     };
     const nextCats = [next, ...builderCategories];
     setBuilderData(builderPois, nextCats);
@@ -1153,6 +1162,30 @@ const onUndo = useCallback(() => {
     csvBaselineRef.current = builderHash;
     setCsvApplyState("applied");
   };
+
+  // ─────────────────────────────────────────────
+  // CRITICAL: Auto-initialize builderConfig if user navigates directly to /builder
+  // without going through "新規作成" / "編集" flow first.
+  // Without this, the BuilderPage crashes (cfg.mode on null) → blank screen.
+  // ─────────────────────────────────────────────
+  const startNewMap = useAppStore(s => s.startNewMap);
+  useEffect(() => {
+    if (!builderConfig) {
+      startNewMap();
+    }
+  }, [builderConfig, startNewMap]);
+
+  // Defensive: if builderConfig is still null on first render (before useEffect runs),
+  // show a minimal loading state instead of crashing on cfg.mode access.
+  if (!builderConfig) {
+    return (
+      <main className="layout layoutSingle" style={{ padding: 40, textAlign: "center" }}>
+        <div style={{ color: "var(--muted)", fontSize: 14 }}>
+          {uiLang === "ja" ? "読み込み中…" : "Loading…"}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="layout layoutSingle">
@@ -2284,11 +2317,11 @@ const onUndo = useCallback(() => {
                 <div className="sectionTitle">{t(uiLang, "publish_color_templates")}</div>
                 <div className="row gap8w">
                   {([
-                    { key: "blue", label: t(uiLang, "theme_blue"), color: "#6ea8fe" },
-                    { key: "green", label: t(uiLang, "theme_green"), color: "#2fd4a3" },
-                    { key: "orange", label: t(uiLang, "theme_orange"), color: "#ffb020" },
-                    { key: "purple", label: t(uiLang, "theme_purple"), color: "#b39ddb" },
-                    { key: "red", label: t(uiLang, "theme_red"), color: "#ff6b6b" },
+                    { key: "blue", label: t(uiLang, "theme_blue"), color: "#9eb4d4" },
+                    { key: "green", label: t(uiLang, "theme_green"), color: "#a3c4a1" },
+                    { key: "orange", label: t(uiLang, "theme_orange"), color: "#d4b87a" },
+                    { key: "purple", label: t(uiLang, "theme_purple"), color: "#b8a3c8" },
+                    { key: "red", label: t(uiLang, "theme_red"), color: "#c97862" },
                   ] as const).map((p) => (
                     <button
                       key={p.key}
@@ -2423,7 +2456,7 @@ const onUndo = useCallback(() => {
 function ColorButton(props: { value: string; onChange: (v: string) => void }) {
   const { value, onChange } = props;
   const isCustom = /^#[0-9a-fA-F]{6}$/.test(value);
-  const safe = isCustom ? value : "#6ea8fe";
+  const safe = isCustom ? value : "#d4b87a";
   return (
     <label
       className="colorBtn"

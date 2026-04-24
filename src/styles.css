@@ -1,83 +1,182 @@
-:root{
-  /* AtlasKobo dark theme — ロゴ配色（ネイビー×グリーン×ゴールド）目に優しいトーン */
-  color-scheme: dark;
-  --bg:#0d1520;
-  --card:#132035;
-  --card2:#0f1a2c;
-  --text:#ddeeff;
-  --muted:#8aabb8;
-  --line:#1e3350;
-  --btn:#132035;
-  --btn2:#1a2e48;
-  --accent:#4db87a;
-  --accent2:#c9a84c;
+/* ════════════════════════════════════════════════════════════════════
+ * AtlasKobo v10.5 — Shic & Luxury Design System
+ * モノトーン × ゴールドアクセント / 上質・洗練
+ * Inspired by: Apple Maps, Stripe Dashboard, Aesop
+ * ════════════════════════════════════════════════════════════════════ */
 
-  --input-bg:#0d1a2a;
+:root{
+  color-scheme: dark;
+
+  /* ── Surfaces (depth via subtle elevation) ── */
+  --bg:        #0a0e14;     /* page bg — near black */
+  --surface-1: #11161e;     /* cards / panes */
+  --surface-2: #161c25;     /* elevated surfaces */
+  --surface-3: #1c232e;     /* hover / active */
+  --input-bg:  #0d1218;
+
+  /* ── Text hierarchy ── */
+  --text:        #f0ede4;   /* primary — warm off-white */
+  --text-muted:  #8a8478;   /* secondary */
+  --text-subtle: #5a5650;   /* tertiary */
+
+  /* ── Lines ── */
+  --line:        rgba(240,237,228,0.08);   /* hairline */
+  --line-strong: rgba(240,237,228,0.16);   /* stronger divider */
+
+  /* ── Accent: Gold (warm, refined) ── */
+  --accent:        #d4b87a;   /* primary gold */
+  --accent-hover:  #e0c688;
+  --accent-strong: #c9a560;
+  --accent-dim:    rgba(212,184,122,0.12);
+  --accent-soft:   rgba(212,184,122,0.20);
+  --accent-text:   #0a0e14;   /* text ON gold (dark) */
+
+  /* ── Semantic ── */
+  --success: #6db091;
+  --warning: #d4a458;
+  --danger:  #c97862;
+
+  /* ── Buttons ── */
+  --btn:         var(--surface-2);
+  --btn-hover:   var(--surface-3);
+
+  /* ── Shadows (refined, not glowy) ── */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.45);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.55);
+
+  /* ── Radii (sharp, not bubbly) ── */
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+
+  /* ── Typography ── */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+  --font-display: -apple-system, "SF Pro Display", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
 
 :root[data-theme="light"]{
-  /* AtlasKobo light theme — やわらかいクリーム×ネイビー */
   color-scheme: light;
-  --bg:#f4f8f2;
-  --card:#ffffff;
-  --card2:#edf5eb;
-  --text:#0d2235;
-  --muted:#3d6055;
-  --line:#c4dbc8;
-  --btn:#edf5eb;
-  --btn2:#d8eedd;
-  --accent:#2e8b57;
-  --accent2:#a07c2a;
 
-  --input-bg:#ffffff;
+  --bg:        #fafaf7;     /* warm off-white */
+  --surface-1: #ffffff;
+  --surface-2: #f4f2ec;
+  --surface-3: #ebe8df;
+  --input-bg:  #ffffff;
+
+  --text:        #1a1814;   /* near-black, warm */
+  --text-muted:  #6a665d;
+  --text-subtle: #8a857a;   /* darkened for better contrast */
+
+  --line:        rgba(26,24,20,0.10);
+  --line-strong: rgba(26,24,20,0.18);
+
+  /* Gold — darkened significantly for WCAG AA compliance on white */
+  --accent:        #8a6a20;   /* was #b8973f; ratio 4.51 on bg */
+  --accent-hover:  #735518;
+  --accent-strong: #5f4712;
+  --accent-dim:    rgba(138,106,32,0.10);
+  --accent-soft:   rgba(138,106,32,0.18);
+  --accent-text:   #ffffff;   /* white on darkened gold = 5.40 contrast */
+
+  --success: #2f7359;   /* darkened */
+  --warning: #8a5f1a;   /* darkened */
+  --danger:  #9a3a22;   /* darkened */
+
+  --btn:         var(--surface-2);
+  --btn-hover:   var(--surface-3);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+}
+
+/* ── Backwards-compat aliases (existing CSS still works) ── */
+:root, :root[data-theme="light"]{
+  --card:  var(--surface-1);
+  --card2: var(--surface-2);
+  --muted: var(--text-muted);
+  --btn2:  var(--surface-3);
+  --accent2: var(--accent-strong);
 }
 
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
   margin:0;
-  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: "kern", "liga", "ss01", "tnum";
   background:var(--bg);
   color:var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.005em;
 }
-a{color:inherit}
+a{color:inherit; text-decoration: none}
+a:hover{color: var(--accent)}
 
+::selection{
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* ─────────────────────────────────────────────
+ * Top Bar — refined, calm, not floating
+ * ───────────────────────────────────────────── */
 .topbar{
-  position:sticky; top:0; z-index:10;
-  padding:12px 14px;
-  border-bottom:1px solid var(--line);
-  background:color-mix(in srgb, var(--bg) 85%, transparent);
-  backdrop-filter:blur(10px);
-  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  position:sticky; top:0; z-index:50;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
 }
 
 .brand{
   display:flex;
   align-items:center;
-  gap:10px;
+  gap: 12px;
   text-decoration:none;
-  padding: 2px 4px;
-  border-radius: 14px;
+  padding: 0;
 }
 
 .brandLogo{
-  height:40px;
-  width:auto;
-  border-radius:12px;
-  border:1px solid color-mix(in srgb, var(--line) 80%, transparent);
-  background: var(--card2);
+  height: 36px;
+  width: auto;
+  border-radius: var(--r-sm);
+  border: none;
+  background: transparent;
 }
 
-.brand .title{font-weight:900; font-size:16px; letter-spacing:0.2px}
-.brand .subtitle{color:var(--muted); font-size:12px; margin-top:2px}
+.brand .title{
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+.brand .subtitle{
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 1px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
 
-.controls{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.controls{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
 
 .inlineLabel{
   display:flex;
   align-items:center;
-  gap:8px;
-  font-size:12px;
+  gap:6px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
   color:var(--muted);
 }
 .inlineLabel select{font-size:12px}
@@ -115,80 +214,113 @@ textarea:-webkit-autofill{
 }
 
 select:focus,input:focus,textarea:focus{
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 textarea{
   min-height:160px;
   width:100%;
   resize:vertical;
-  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
+/* ─────────────────────────────────────────────
+ * Buttons — refined, sharp, intentional
+ * ───────────────────────────────────────────── */
 .btn{
   display:inline-flex; align-items:center; justify-content:center;
-  padding:8px 10px;
-  border-radius:12px;
-  border:1px solid var(--line);
-  background:var(--btn);
-  color:var(--text);
-  text-decoration:none;
-  cursor:pointer;
-  gap:8px;
+  padding: 8px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--btn);
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
+  user-select: none;
 }
-.btn:hover{background:var(--btn2)}
+.btn:hover{
+  background: var(--btn-hover);
+  border-color: color-mix(in srgb, var(--text) 25%, var(--line-strong));
+}
+.btn:active{ transform: translateY(0.5px) }
+
 .btn.soft{
-  border-color:color-mix(in srgb, var(--accent) 35%, transparent);
-  background:color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent-soft);
+  background: var(--accent-dim);
+  color: var(--accent);
 }
-.btn.soft:hover{background:color-mix(in srgb, var(--accent) 12%, transparent)}
+.btn.soft:hover{
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--accent);
+}
 
 .btn.primary{
-  border-color:color-mix(in srgb, var(--accent) 55%, transparent);
-  background:color-mix(in srgb, var(--accent) 16%, transparent);
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+  font-weight: 600;
 }
-.btn.primary:hover{background:color-mix(in srgb, var(--accent) 24%, transparent)}
+.btn.primary:hover{
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
 
-/* Green button (used for "Apply to CSV" and "Apply to map") */
 .btn.success{
-  border-color:color-mix(in srgb, #34d399 55%, transparent);
-  background:color-mix(in srgb, #34d399 16%, transparent);
+  border-color: color-mix(in srgb, var(--success) 50%, transparent);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
 }
-.btn.success:hover{background:color-mix(in srgb, #34d399 24%, transparent)}
+.btn.success:hover{ background: color-mix(in srgb, var(--success) 22%, transparent) }
 
-/* Slightly red button (used for "Apply to CSV") */
 .btn.danger{
-  border-color:color-mix(in srgb, #ff6b6b 55%, transparent);
-  background:color-mix(in srgb, #ff6b6b 16%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
 }
-.btn.danger:hover{background:color-mix(in srgb, #ff6b6b 24%, transparent)}
+.btn.danger:hover{ background: color-mix(in srgb, var(--danger) 22%, transparent) }
 
-/* Color picker button (used in Builder marker settings) */
+/* Color picker button (refined for luxury look) */
 .colorBtn{
-  width:44px;
-  height:34px;
-  padding:0;
-  border-radius:12px;
-  border:1px solid color-mix(in srgb, var(--line) 70%, transparent);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
-  position:relative;
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  box-shadow: inset 0 0 0 1px var(--line);
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.colorBtn:hover{
+  transform: scale(1.05);
+  box-shadow: inset 0 0 0 1px var(--line-strong), 0 2px 8px rgba(0,0,0,0.3);
 }
 .colorBtn input[type="color"]{
-  position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
-  opacity:0;
-  cursor:pointer;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
+/* ─────────────────────────────────────────────
+ * Layout — generous spacing, breathing room
+ * ───────────────────────────────────────────── */
 .layout{
-  display:grid;
+  display: grid;
   grid-template-columns: 1.55fr 1fr;
-  gap:12px;
-  padding:12px;
-  height:calc(100vh - 58px);
+  gap: 16px;
+  padding: 16px 24px;
+  height: calc(100vh - 65px);
 }
 
 /* Map-only display (mobile-friendly) */
@@ -221,57 +353,55 @@ textarea{
 }
 
 .pane{
-  border:1px solid var(--line);
-  border-radius:16px;
-  background:var(--card);
-  overflow:hidden;
-  display:flex;
-  flex-direction:column;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-sm);
 }
 
 .paneHeader{
-  padding:10px 12px;
-  border-bottom:1px solid var(--line);
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:8px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
 }
 
-.paneBody{flex:1; overflow:auto; padding:10px}
-/* Map area: clip Leaflet layers so they never cover UI below */
-.mapWrap{height:100%; width:100%; position:relative; overflow:hidden; border-radius:14px}
+.paneBody{ flex:1; overflow:auto; padding: 18px }
+.mapWrap{ height:100%; width:100%; position:relative; overflow:hidden; border-radius: var(--r-lg) }
 
-/* Prevent the Leaflet canvas from visually overlapping adjacent sections */
-.mapWrap{position:relative; overflow:hidden}
-
-/* Map overlay controls (e.g., "My location" button) */
+/* "My location" button (refined) */
 .msf-locateWrap{
-  position:absolute;
-  top:12px;
-  right:12px;
-  z-index:700; /* above Leaflet panes */
-  display:flex;
-  flex-direction:column;
-  gap:6px;
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 700;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .msf-locateBtn{
-  width:44px;
-  height:44px;
-  padding:0;
-  border-radius:999px;
-  font-size:20px;
-
-  /* Make it clearly visible on top of the map */
-  background:var(--accent);
-  border-color:color-mix(in srgb, var(--accent) 65%, black);
-  color:white;
-  box-shadow: 0 10px 22px rgba(0,0,0,0.22);
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: var(--r-md);
+  font-size: 18px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-strong);
+  color: var(--accent);
+  box-shadow: var(--shadow-md);
+  transition: transform 0.15s ease, background 0.15s ease;
 }
 .msf-locateBtn:hover{
-  filter:brightness(1.05);
+  transform: scale(1.05);
+  background: var(--surface-2);
 }
-.msf-locateBtn.isBusy{opacity:0.8; cursor:progress;}
+.msf-locateBtn.isBusy{ opacity:0.7; cursor:progress; }
 
 /* "My location" marker (no external image assets) */
 .msf-mypos-icon{ background:transparent; border:none; }
@@ -283,21 +413,37 @@ textarea{
   border:2px solid rgba(255,255,255,0.9);
   box-shadow:0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent);
 }
-.hint{color:var(--muted); font-size:12px; line-height:1.6}
-.dangerText{color:#ff6464}
-.grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-.grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px}
-.cards{display:grid; gap:10px}
+.hint{
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: 0.005em;
+}
+.dangerText{ color: var(--danger) }
+.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px }
+.grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px }
+.cards{ display:grid; gap:14px }
 
 .card{
-  border:1px solid var(--line);
-  background:var(--card2);
-  border-radius:14px;
-  padding:10px;
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+  border-radius: var(--r-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
 }
 
-.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
-.badge{font-size:12px; color:var(--muted)}
+.row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center }
+.badge{
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 3px 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
 
 .savePill{
   display:inline-flex;
@@ -315,54 +461,78 @@ textarea{
 
 
 .listItem{
-  border:1px solid var(--line);
-  background:var(--card2);
-  border-radius:14px;
-  padding:10px;
-  cursor:pointer;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.listItem:hover{border-color:color-mix(in srgb, var(--line) 40%, var(--text))}
-.listItem .name{font-weight:800}
-.bizIcon{margin-right:6px;}
-.listItem .meta{color:var(--muted); font-size:12px; margin-top:4px}
+.listItem:hover{
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+}
+.listItem .name{
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.005em;
+}
+.bizIcon{ margin-right: 6px }
+.listItem .meta{
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 4px;
+  letter-spacing: 0.01em;
+}
 
 .modalBackdrop{
-  position:fixed; inset:0;
-  z-index:9999;
-  background:rgba(0,0,0,0.55);
-  display:flex; align-items:center; justify-content:center;
-  padding:12px;
+  position: fixed; inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
 }
 
 .modal{
-  width:min(780px, 100%);
-  max-height:calc(100vh - 24px);
-  overflow:auto;
-  border:1px solid var(--line);
-  background:var(--input-bg);
-  border-radius:18px;
-  padding:12px;
+  width: min(720px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-1);
+  border-radius: var(--r-xl);
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
 }
 
 .modalHeader{
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  position:sticky; top:0;
-  background:var(--input-bg);
-  padding-bottom:8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  position: sticky; top: 0;
+  background: var(--surface-1);
+  padding-bottom: 16px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
 }
 
-.modalTitle{font-weight:900; font-size:18px}
+.modalTitle{
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
 
 .danger{
-  border:1px solid color-mix(in srgb, #ff6464 35%, transparent);
-  background:color-mix(in srgb, #ff6464 8%, transparent);
-  padding:10px;
-  border-radius:14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  color: var(--danger);
 }
 
 .ok{
-  border:1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  background:color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
   padding:10px;
   border-radius:14px;
 }
@@ -603,22 +773,22 @@ textarea{
   flex-direction:column;
   gap:8px;
   padding:10px;
-  border:1px solid rgba(255,255,255,0.10);
+  border:1px solid var(--line);
   background: rgba(0,0,0,0.18);
   border-radius: 14px;
 }
-.thumbItem img{ width:100%; height:120px; object-fit:cover; border-radius: 12px; border:1px solid rgba(255,255,255,0.10); }
-.thumbFallback{ height:120px; display:flex; align-items:center; justify-content:center; border-radius:12px; border:1px dashed rgba(255,255,255,0.18); color:var(--muted); font-weight:900; }
+.thumbItem img{ width:100%; height:120px; object-fit:cover; border-radius: 12px; border:1px solid var(--line); }
+.thumbFallback{ height:120px; display:flex; align-items:center; justify-content:center; border-radius:12px; border:1px dashed var(--line-strong); color:var(--muted); font-weight:600; font-size:13px; }
 .thumbMeta{ display:flex; flex-direction:column; gap:2px; }
 .thumbName{ font-weight:800; font-size:13px; }
 .list{ display:flex; flex-direction:column; gap:6px; }
 .listItem{
   width:100%;
   text-align:left;
-  border:1px solid rgba(255,255,255,0.10);
+  border:1px solid var(--line);
   border-radius:14px;
   padding:10px;
-  background: rgba(255,255,255,0.04);
+  background: var(--surface-2);
 }
 .listItem.active{
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
@@ -626,25 +796,66 @@ textarea{
 }
 .leaflet-popup-content .btn.primary{
   background: var(--accent);
-  color: #06121f;
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--accent-text);
+  border-color: var(--accent);
 }
 .leaflet-popup-content .btn.primary:hover{
-  background: color-mix(in srgb, var(--accent) 85%, #ffffff 15%);
+  background: var(--accent-hover);
+}
+
+/* Leaflet zoom controls (theme-aware) */
+.leaflet-bar{
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--r-md) !important;
+  overflow: hidden;
+  box-shadow: var(--shadow-md) !important;
+}
+.leaflet-bar a,
+.leaflet-bar a:focus,
+.leaflet-bar a:hover{
+  background: var(--surface-1) !important;
+  color: var(--text) !important;
+  border-bottom: 1px solid var(--line) !important;
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 30px !important;
+  font-size: 18px !important;
+  font-weight: 500 !important;
+}
+.leaflet-bar a:hover{
+  background: var(--surface-2) !important;
+  color: var(--accent) !important;
+}
+.leaflet-bar a:last-child{ border-bottom: none !important; }
+
+/* Attribution text */
+.leaflet-control-attribution{
+  background: color-mix(in srgb, var(--surface-1) 80%, transparent) !important;
+  color: var(--text-muted) !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  border-radius: var(--r-sm) !important;
+}
+.leaflet-control-attribution a{
+  color: var(--text-muted) !important;
+}
+.leaflet-control-attribution a:hover{
+  color: var(--accent) !important;
 }
 
 /* ── Marker clustering ── */
 .msf-cluster-icon{background:transparent !important;border:none !important}
 .msf-cluster{
-  display:flex;align-items:center;justify-content:center;
-  border-radius:50%;
-  background:color-mix(in srgb, var(--accent) 85%, var(--bg));
-  border:3px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  box-shadow:0 2px 8px rgba(0,0,0,0.25);
-  font-weight:900;font-size:13px;color:#fff;
-  transition:transform .15s;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  font-weight: 700; font-size: 13px;
+  color: var(--accent-text);
+  transition: transform 0.15s;
 }
-.msf-cluster:hover{transform:scale(1.15)}
+.msf-cluster:hover{ transform: scale(1.15) }
 
 /* ── Loading overlay ── */
 .msf-loading{
@@ -687,21 +898,36 @@ textarea{
   border-left-color:var(--accent);
 }
 
-/* ── Privacy banner (dismissible) ── */
+/* ── Privacy banner (refined) ── */
 .privacyBanner{
-  padding:10px 12px;
-  transition:max-height .3s ease, opacity .3s ease, padding .3s ease;
-  max-height:200px;overflow:hidden;opacity:1;
+  padding: 10px 24px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+  transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+  max-height: 200px;
+  overflow: hidden;
+  opacity: 1;
 }
 .privacyBanner.dismissed{
-  max-height:0;opacity:0;padding:0 12px;
-  pointer-events:none;
+  max-height: 0;
+  opacity: 0;
+  padding: 0 24px;
+  pointer-events: none;
 }
 .privacyBanner .dismissBtn{
-  background:none;border:none;color:var(--muted);cursor:pointer;
-  font-size:18px;padding:0 4px;line-height:1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.15s ease;
 }
-.privacyBanner .dismissBtn:hover{color:var(--text)}
+.privacyBanner .dismissBtn:hover{ color: var(--text) }
 
 /* ── Responsive: builder on mobile ── */
 @media(max-width:640px){
@@ -759,40 +985,42 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
   transform:translateY(100px);
 }
 
-/* ── Floor selector (multi-floor indoor) ── */
+/* ── Floor selector (refined for luxury aesthetic) ── */
 .msf-floorSelector{
-  display:flex;gap:4px;
-  padding:6px 8px;
-  background:color-mix(in srgb, var(--card) 90%, transparent);
-  border-radius:12px;
-  border:1px solid var(--line);
-  backdrop-filter:blur(6px);
-  z-index:500;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--surface-1) 95%, transparent);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--shadow-md);
+  z-index: 500;
 }
 .msf-floorBtn{
-  padding:7px 16px;
-  border-radius:8px;
-  border:2px solid var(--line);
-  background:var(--btn);
-  color:var(--text);
-  font-size:13px;font-weight:800;
-  cursor:pointer;
-  transition:all .12s;
-  letter-spacing:0.02em;
+  padding: 7px 16px;
+  border-radius: var(--r-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-display);
 }
 .msf-floorBtn:hover{
-  background:var(--btn2);
-  border-color:color-mix(in srgb, var(--accent) 50%, var(--line));
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 .msf-floorBtn.active{
-  background:var(--accent);
-  color:#fff;
-  border-color:var(--accent);
-  box-shadow:0 2px 8px color-mix(in srgb, var(--accent) 40%, transparent);
-  transform:translateY(-1px);
-}
-:root[data-theme="light"] .msf-floorBtn.active{
-  color:#fff;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
 }
 
 /* ── Builder utility classes (replacing inline styles) ── */
@@ -832,7 +1060,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .w160{width:160px}
 .p12{padding:12px}
 .fw800{font-weight:800}
-.errorTextSm{margin-top:8px;color:#f66}
+.errorTextSm{margin-top:8px;color:var(--danger)}
 .ml8{margin-left:8px}
 .m0{margin:0}
 .btnMd{font-size:13px;padding:6px 14px}

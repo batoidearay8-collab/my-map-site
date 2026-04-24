@@ -21,23 +21,39 @@ function applyTheme(theme: "dark" | "light" | "system") {
   set(mq?.matches ? "dark" : "light");
 }
 
-// Color palette for the publish color templates (keep in sync with BuilderPage)
-const ACCENT_COLORS: Record<string, string> = {
-  blue: "#6ea8fe",
-  green: "#2fd4a3",
-  orange: "#ffb020",
-  purple: "#b39ddb",
-  red: "#ff6b6b",
+// v10.5 Luxury palette — dark/light variants for WCAG AA compliance
+const ACCENT_COLORS_DARK: Record<string, string> = {
+  blue:   "#9eb4d4",   // dusty steel blue
+  green:  "#a3c4a1",   // sage
+  orange: "#d4b87a",   // gold (signature)
+  purple: "#b8a3c8",   // muted lavender
+  red:    "#c97862",   // terracotta
 };
+
+const ACCENT_COLORS_LIGHT: Record<string, string> = {
+  blue:   "#3d5a85",
+  green:  "#3a6e45",
+  orange: "#8a6a20",
+  purple: "#6d4f8a",
+  red:    "#8a3d28",
+};
+
+// Backwards-compat alias (referenced below)
+const ACCENT_COLORS = ACCENT_COLORS_DARK;
 
 function applyAccent(preset?: string) {
   const root = document.documentElement;
-  const color = preset && ACCENT_COLORS[preset];
+  if (!preset) {
+    root.style.removeProperty("--accent");
+    return;
+  }
+  const theme = root.getAttribute("data-theme") || "dark";
+  const map = theme === "light" ? ACCENT_COLORS_LIGHT : ACCENT_COLORS_DARK;
+  const color = map[preset];
   if (color) {
-    // Use setProperty with priority to beat :root defaults when theme toggles
+    // !important beats :root defaults when theme toggles or presets change
     root.style.setProperty("--accent", color, "important");
   } else {
-    // Remove override so the stylesheet's default takes effect
     root.style.removeProperty("--accent");
   }
 }

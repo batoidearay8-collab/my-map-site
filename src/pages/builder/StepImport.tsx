@@ -100,7 +100,7 @@ export function StepImport(props: BuilderContext) {
         {importedName ? <div className="hint" style={{ marginTop: 8 }}>{importedName}</div> : null}
         {importState === "loading" ? <div className="hint" style={{ marginTop: 8 }}>{t(uiLang, "loading")}</div> : null}
         {importState === "done" ? <div className="hint" style={{ marginTop: 8 }}>{t(uiLang, "import_loaded")}</div> : null}
-        {importState === "error" && importError ? <div className="hint" style={{ marginTop: 8, color: "#f66" }}>{importError}</div> : null}
+        {importState === "error" && importError ? <div className="hint" style={{ marginTop: 8, color: "var(--danger)" }}>{importError}</div> : null}
 
         <div className="row" style={{ justifyContent: "flex-end", marginTop: 12 }}>
           <button className={"btn " + (importState === "done" ? "primary" : "soft")} onClick={() => setStep(1)} disabled={importState !== "done"}>

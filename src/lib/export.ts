@@ -27,15 +27,30 @@ export type ExportSiteInput = ExportInput & {
 };
 
 function themeCss(preset: ThemePreset): string {
-  const map: Record<ThemePreset, string> = {
-    blue: "#4db87a",
-    green: "#2fd4a3",
-    orange: "#ffb020",
-    purple: "#b39ddb",
-    red: "#ff6b6b",
+  // v10.5: Luxury monochrome+accent palette — WCAG AA compliant
+  const map: Record<ThemePreset, { dark: string; light: string }> = {
+    blue:   { dark: "#9eb4d4", light: "#3d5a85" },   // dusty steel blue (darkened)
+    green:  { dark: "#a3c4a1", light: "#3a6e45" },   // sage (darkened)
+    orange: { dark: "#d4b87a", light: "#8a6a20" },   // gold (darkened for contrast)
+    purple: { dark: "#b8a3c8", light: "#6d4f8a" },   // muted lavender (darkened)
+    red:    { dark: "#c97862", light: "#8a3d28" },   // terracotta (darkened)
   };
-  const accent = map[preset] || map.blue;
-  return `:root{--accent:${accent};}\n`;
+  const c = map[preset] || map.orange;
+  return `:root{
+  --accent:${c.dark};
+  --accent-soft:${c.dark}33;
+  --accent-dim:${c.dark}1a;
+  --gold:${c.dark};
+  --focusRing:${c.dark}4d;
+}
+:root[data-theme="light"]{
+  --accent:${c.light};
+  --accent-soft:${c.light}30;
+  --accent-dim:${c.light}1a;
+  --gold:${c.light};
+  --focusRing:${c.light}4d;
+}
+`;
 }
 
 function escapeHtml(s: string): string {

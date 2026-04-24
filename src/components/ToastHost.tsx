@@ -91,10 +91,10 @@ function ToastItemView({ toast: t, onDismiss }: { toast: ToastItem; onDismiss: (
   }, []);
 
   const colors: Record<ToastType, { border: string; icon: string }> = {
-    info:    { border: "var(--accent)", icon: "ℹ️" },
-    success: { border: "#2fd4a3",       icon: "✅" },
-    warning: { border: "#ffb020",       icon: "⚠️" },
-    error:   { border: "#ff6b6b",       icon: "❌" },
+    info:    { border: "var(--accent)",  icon: "ℹ️" },
+    success: { border: "var(--success)", icon: "✅" },
+    warning: { border: "var(--warning)", icon: "⚠️" },
+    error:   { border: "var(--danger)",  icon: "❌" },
   };
   const c = colors[t.type];
 

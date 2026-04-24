@@ -13,11 +13,11 @@ export function StepPublish(props: BuilderContext) {
   const [qrOpen, setQrOpen] = useState(false);
 
   const themes = [
-    { key: "blue", label: t(uiLang, "theme_blue"), color: "#6ea8fe" },
-    { key: "green", label: t(uiLang, "theme_green"), color: "#2fd4a3" },
-    { key: "orange", label: t(uiLang, "theme_orange"), color: "#ffb020" },
-    { key: "purple", label: t(uiLang, "theme_purple"), color: "#b39ddb" },
-    { key: "red", label: t(uiLang, "theme_red"), color: "#ff6b6b" },
+    { key: "blue", label: t(uiLang, "theme_blue"), color: "#9eb4d4" },
+    { key: "green", label: t(uiLang, "theme_green"), color: "#a3c4a1" },
+    { key: "orange", label: t(uiLang, "theme_orange"), color: "#d4b87a" },
+    { key: "purple", label: t(uiLang, "theme_purple"), color: "#b8a3c8" },
+    { key: "red", label: t(uiLang, "theme_red"), color: "#c97862" },
   ] as const;
 
   return (
