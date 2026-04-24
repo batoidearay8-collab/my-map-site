@@ -408,7 +408,7 @@ const onUndo = useCallback(() => {
       setCatsCsv(categoriesToCsv(mergedCats, supportedLangs, defaultLang));
     }
 
-    setBuilderConfig({ ...cfg, template: tmpl as AppConfig["template"], reco: { needs: info.needs, rules: (cfg.reco?.rules ?? {}) } });
+    setBuilderConfig({ ...(builderConfig as AppConfig), template: tmpl as AppConfig["template"], reco: { needs: info.needs, rules: (builderConfig?.reco?.rules ?? {}) } });
   };
 
   // Keep step in sync when switching between normal / import flow.
@@ -519,17 +519,17 @@ const onUndo = useCallback(() => {
   const [importMsg, setImportMsg] = useState<string>("");
   // Publish (step 4): color template for the full site zip
   const [publishTheme, setPublishTheme] = useState<ThemePreset>(
-    (cfg?.ui?.themePreset ?? "blue") as ThemePreset
+    (builderConfig?.ui?.themePreset ?? "blue") as ThemePreset
   );
 
   // Fix #2: Sync publishTheme when config changes (e.g., ZIP import loaded new theme)
   useEffect(() => {
-    const cfgTheme = cfg?.ui?.themePreset;
+    const cfgTheme = builderConfig?.ui?.themePreset;
     if (cfgTheme && cfgTheme !== publishTheme) {
       setPublishTheme(cfgTheme as ThemePreset);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg?.ui?.themePreset]);
+  }, [builderConfig?.ui?.themePreset]);
   const [exportLoading, setExportLoading] = useState<string>(""); // "" = idle, else = loading message
 
   // Apply selected publish color template globally (persists to config & viewer).
@@ -558,11 +558,11 @@ const onUndo = useCallback(() => {
 
   // Persist theme choice to the config so it survives reloads and applies in viewer
   useEffect(() => {
-    if (!cfg) return;
-    if (cfg.ui?.themePreset === publishTheme) return;
+    if (!builderConfig) return;
+    if (builderConfig.ui?.themePreset === publishTheme) return;
     setBuilderConfig({
-      ...cfg,
-      ui: { ...(cfg.ui ?? { tabTitle: "AtlasKobo — 地図サイト制作キット" }), themePreset: publishTheme }
+      ...builderConfig,
+      ui: { ...(builderConfig.ui ?? { tabTitle: "AtlasKobo — 地図サイト制作キット" }), themePreset: publishTheme }
     });
   }, [publishTheme]); // eslint-disable-line react-hooks/exhaustive-deps
 
