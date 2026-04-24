@@ -1,7 +1,7 @@
 {
   "name": "map-site-framework",
   "private": true,
-  "version": "10.5.2",
+  "version": "10.5.3",
   "type": "module",
   "scripts": {
     "dev": "vite",

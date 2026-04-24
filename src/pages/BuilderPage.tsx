@@ -694,6 +694,20 @@ const onUndo = useCallback(() => {
   const defaultLang = cfg?.i18n?.defaultLang ?? "ja";
   const effectiveContentLang = contentLang || defaultLang;
 
+  // ─────────────────────────────────────────────
+  // CRITICAL FIX: Auto-initialize builderConfig if user navigates directly to /builder
+  // (e.g., clicking "作る" or "編集" link without going through "新規作成" first).
+  // Without this, the BuilderPage receives null cfg and renders nothing → blank screen.
+  // ─────────────────────────────────────────────
+  const startNewMap = useAppStore(s => s.startNewMap);
+  useEffect(() => {
+    // Only auto-init for the normal "作る" flow, not the import flow
+    // (import flow is handled separately at the cfg-null branch).
+    if (!builderConfig && !importFlow) {
+      startNewMap();
+    }
+  }, [builderConfig, importFlow, startNewMap]);
+
   // Create / revoke object URLs for immediate preview of uploaded assets
   useEffect(() => {
     if (!builderAssets.floorFile) { setFloorPreviewUrl(""); return; }
@@ -1139,6 +1153,18 @@ const onUndo = useCallback(() => {
     return <main className="layout"><section className="pane"><div className="card">{uiLang === "ja" ? "読み込み中…" : "Loading…"}</div></section></main>;
   }
 
+  // Defensive: if builderConfig is still null on first render (before useEffect runs),
+  // show a minimal loading state instead of crashing on cfg.title/cfg.mode access below.
+  if (!cfg) {
+    return (
+      <main className="layout layoutSingle" style={{ padding: 40, textAlign: "center" }}>
+        <div style={{ color: "var(--muted)", fontSize: 14 }}>
+          {uiLang === "ja" ? "読み込み中…" : "Loading…"}
+        </div>
+      </main>
+    );
+  }
+
   // In the builder, show the field for the current language without falling back.
   // (If we fallback, beginners may think they're editing Japanese but actually edit English, etc.)
   const titleEditing = (effectiveContentLang === defaultLang)
@@ -1162,30 +1188,6 @@ const onUndo = useCallback(() => {
     csvBaselineRef.current = builderHash;
     setCsvApplyState("applied");
   };
-
-  // ─────────────────────────────────────────────
-  // CRITICAL: Auto-initialize builderConfig if user navigates directly to /builder
-  // without going through "新規作成" / "編集" flow first.
-  // Without this, the BuilderPage crashes (cfg.mode on null) → blank screen.
-  // ─────────────────────────────────────────────
-  const startNewMap = useAppStore(s => s.startNewMap);
-  useEffect(() => {
-    if (!builderConfig) {
-      startNewMap();
-    }
-  }, [builderConfig, startNewMap]);
-
-  // Defensive: if builderConfig is still null on first render (before useEffect runs),
-  // show a minimal loading state instead of crashing on cfg.mode access.
-  if (!builderConfig) {
-    return (
-      <main className="layout layoutSingle" style={{ padding: 40, textAlign: "center" }}>
-        <div style={{ color: "var(--muted)", fontSize: 14 }}>
-          {uiLang === "ja" ? "読み込み中…" : "Loading…"}
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="layout layoutSingle">
