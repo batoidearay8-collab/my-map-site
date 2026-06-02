@@ -34,9 +34,28 @@ export function round6(v: number): number {
 
 /* ── CSV helpers ── */
 
+/**
+ * Escape a value for inclusion in a CSV cell.
+ *
+ * Wraps in double-quotes if the value contains commas, quotes, or newlines.
+ * Doubles internal quotes per RFC 4180.
+ *
+ * BUG #9 fix: Also prevents CSV formula injection by prefixing values that
+ * begin with =, +, -, @ with a single quote. Without this, opening the CSV
+ * in Excel/Google Sheets would execute arbitrary formulas (e.g., a POI named
+ * `=HYPERLINK("evil.com","Click")` becomes a clickable link).
+ *
+ * Reference: https://owasp.org/www-community/attacks/CSV_Injection
+ */
 export function csvEscape(v: string): string {
-  const s = String(v ?? "");
-  if (/[\n\r,\"]/g.test(s)) return `"${s.replaceAll('"', '""')}"`;
+  let s = String(v ?? "");
+
+  // BUG #9 fix: prefix dangerous formula characters with a single quote
+  if (s.length > 0 && /^[=+\-@\t\r]/.test(s)) {
+    s = "'" + s;
+  }
+
+  if (/[\n\r,"]/g.test(s)) return `"${s.replaceAll('"', '""')}"`;
   return s;
 }
 
@@ -46,7 +65,8 @@ export function poisToCsv(pois: Poi[], cfgSupportedLangs: string[], defaultLang:
     "id", "name", "description",
     ...extra.map(l => `name_${l}`),
     ...extra.map(l => `description_${l}`),
-    "category", "image", "lat", "lng", "x", "y", "url", "hours", "closed", "floor"
+    "category", "image", "lat", "lng", "x", "y", "url", "hours", "closed", "floor",
+    "connectorType", "connectorGroup"
   ];
   const rows = pois.map(p => {
     const cols: string[] = [];
@@ -65,6 +85,8 @@ export function poisToCsv(pois: Poi[], cfgSupportedLangs: string[], defaultLang:
     cols.push(p.hours ?? "");
     cols.push(p.closed ?? "");
     cols.push(p.floor ?? "");
+    cols.push(p.connectorType ?? "");
+    cols.push(p.connectorGroup ?? "");
     return cols.map(csvEscape).join(",");
   });
   return [headers.join(","), ...rows].join("\n");

@@ -66,6 +66,14 @@ export function parsePoisFromCsv(text: string): Poi[] {
 
       // Multi-floor indoor support
       floor: pickFirst(r, ["floor", "Floor", "フロア", "階"]),
+
+      // Connector (stairs/elevator/escalator/ramp) fields for cross-floor routing
+      connectorType: (() => {
+        const v = pickFirst(r, ["connectorType", "connector_type", "接続種別"]).toLowerCase();
+        if (["stairs", "elevator", "escalator", "ramp"].includes(v)) return v as any;
+        return "";
+      })(),
+      connectorGroup: pickFirst(r, ["connectorGroup", "connector_group", "接続グループ"]),
     };
 
     const lat = Number((r as any).lat);

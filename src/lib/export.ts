@@ -205,64 +205,89 @@ function normalizeI18nForExport(cfg: AppConfig, categories: Category[], pois: Po
   return { cfg: nextCfg, categories: nextCats, pois: nextPois };
 }
 
-export async function exportSiteZip(input: ExportSiteInput): Promise<Blob> {
-  const zip = new JSZip();
+/**
+ * A single file destined for the published site.
+ * `data` is either text (utf-8) or binary bytes.
+ */
+export type SiteFile =
+  | { path: string; kind: "text"; data: string }
+  | { path: string; kind: "binary"; data: ArrayBuffer };
+
+/**
+ * Build the complete set of files that make up the published site.
+ * This is the single source of truth used by BOTH:
+ *   - exportSiteZip()  → packs them into a ZIP for download
+ *   - deployToGitHub() → uploads them via the GitHub API
+ * Keeping one builder guarantees the ZIP and the GitHub deploy are identical.
+ */
+export async function buildSiteFileMap(input: ExportSiteInput): Promise<SiteFile[]> {
+  const files: SiteFile[] = [];
 
   const normalized = normalizeI18nForExport(input.config, input.categories, input.pois);
   const cfg = normalized.cfg;
   const cats = normalized.categories;
   const pois = applyPrivacyForExport(cfg, normalized.pois);
 
-  // Assets
+  // Assets — single floor
   if (input.floorFile) {
-    zip.file("assets/" + input.floorFile.name, await input.floorFile.arrayBuffer());
+    files.push({ path: "assets/" + input.floorFile.name, kind: "binary", data: await input.floorFile.arrayBuffer() });
     cfg.indoor.imageUrl = `/assets/${input.floorFile.name}`;
   }
-  // Multi-floor images
+  // Assets — multi-floor images
   if (input.floorFiles && cfg.indoor.floors) {
     for (const floor of cfg.indoor.floors) {
       const file = input.floorFiles[floor.id];
       if (file) {
         const fileName = `floor_${floor.id}_${file.name}`;
-        zip.file("assets/" + fileName, await file.arrayBuffer());
+        files.push({ path: "assets/" + fileName, kind: "binary", data: await file.arrayBuffer() });
         floor.imageUrl = `/assets/${fileName}`;
       }
     }
   }
+  // POI images
   for (const [pathKey, file] of Object.entries(input.images)) {
     const rel = pathKey.startsWith("/") ? pathKey.slice(1) : pathKey;
-    zip.file(rel, await file.arrayBuffer());
+    files.push({ path: rel, kind: "binary", data: await file.arrayBuffer() });
   }
 
   // Data
-  zip.file("data/config.json", JSON.stringify(cfg, null, 2));
-  zip.file("data/pois.json", JSON.stringify(pois, null, 2));
-  zip.file("data/categories.json", JSON.stringify(cats, null, 2));
+  files.push({ path: "data/config.json", kind: "text", data: JSON.stringify(cfg, null, 2) });
+  files.push({ path: "data/pois.json", kind: "text", data: JSON.stringify(pois, null, 2) });
+  files.push({ path: "data/categories.json", kind: "text", data: JSON.stringify(cats, null, 2) });
 
   // Site runtime
   const tabTitle = cfg.ui?.tabTitle || "AtlasKobo — 地図サイト制作キット";
-  zip.file(
-    "index.html",
-    indexHtml({ tabTitle, title: cfg.title || "", subtitle: cfg.subtitle || "" })
-  );
-  zip.file("app.js", publishAppJs);
-  zip.file("styles.css", publishCss);
-  zip.file("theme.css", themeCss(input.themePreset));
+  files.push({ path: "index.html", kind: "text", data: indexHtml({ tabTitle, title: cfg.title || "", subtitle: cfg.subtitle || "" }) });
+  files.push({ path: "app.js", kind: "text", data: publishAppJs });
+  files.push({ path: "styles.css", kind: "text", data: publishCss });
+  files.push({ path: "theme.css", kind: "text", data: themeCss(input.themePreset) });
 
-  // Brand assets (optional but recommended): logo & favicon.
-  // These live under /public in the Builder app, so we fetch them at runtime.
-  await tryAddPublicFile(zip, "brand/logo.png");
-  await tryAddPublicFile(zip, "brand/logo.png", "logo.png");
-  await tryAddPublicFile(zip, "brand/logo.svg");
-  await tryAddPublicFile(zip, "brand/logo.svg", "logo.svg");
-  await tryAddPublicFile(zip, "favicon.ico");
-  await tryAddPublicFile(zip, "favicon.svg");
-  await tryAddPublicFile(zip, "favicon-16x16.png");
-  await tryAddPublicFile(zip, "favicon-32x32.png");
-  await tryAddPublicFile(zip, "apple-touch-icon.png");
-  await tryAddPublicFile(zip, "icons/icon-192.png");
-  await tryAddPublicFile(zip, "icons/icon-512.png");
+  // Brand assets — fetched from /public at runtime. Optional; skipped if missing.
+  const brandPaths: Array<[string, string?]> = [
+    ["brand/logo.png"], ["brand/logo.png", "logo.png"],
+    ["brand/logo.svg"], ["brand/logo.svg", "logo.svg"],
+    ["favicon.ico"], ["favicon.svg"],
+    ["favicon-16x16.png"], ["favicon-32x32.png"],
+    ["apple-touch-icon.png"], ["icons/icon-192.png"], ["icons/icon-512.png"],
+  ];
+  for (const [srcPath, destPath] of brandPaths) {
+    try {
+      const res = await fetch(publicUrl(srcPath));
+      if (res.ok) {
+        files.push({ path: destPath || srcPath, kind: "binary", data: await res.arrayBuffer() });
+      }
+    } catch { /* skip missing brand asset */ }
+  }
 
+  return files;
+}
+
+export async function exportSiteZip(input: ExportSiteInput): Promise<Blob> {
+  const zip = new JSZip();
+  const files = await buildSiteFileMap(input);
+  for (const f of files) {
+    zip.file(f.path, f.data);
+  }
   return await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 9 } });
 }
 

@@ -73,6 +73,40 @@ export function validateAll(cfg: AppConfig, pois: Poi[], categories: Category[])
     }
   }
 
+  // Check connector groups: each group needs at least 2 POIs on different floors
+  if (cfg.mode === "indoor" && (cfg.indoor.floors ?? []).length >= 2) {
+    const groups = new Map<string, Poi[]>();
+    for (const p of pois) {
+      if (p.connectorGroup && p.connectorType) {
+        const arr = groups.get(p.connectorGroup) ?? [];
+        arr.push(p);
+        groups.set(p.connectorGroup, arr);
+      }
+    }
+    for (const [groupId, groupPois] of groups.entries()) {
+      if (groupPois.length < 2) {
+        issues.push({
+          level: "warning",
+          message: msg(
+            `接続グループ「${groupId}」に1つしか地点がありません。フロア間移動には別フロアの同名グループが必要です。`,
+            `Connector group "${groupId}" has only one POI. Cross-floor routing needs another POI in this group on a different floor.`
+          )
+        });
+      } else {
+        const floors = new Set(groupPois.map(p => p.floor || ""));
+        if (floors.size < 2) {
+          issues.push({
+            level: "warning",
+            message: msg(
+              `接続グループ「${groupId}」の地点が全て同じフロアにあります。フロア間移動になりません。`,
+              `Connector group "${groupId}" has all POIs on the same floor — won't enable cross-floor routing.`
+            )
+          });
+        }
+      }
+    }
+  }
+
   for (const p of pois) {
     if (!p.name.trim()) {
       issues.push({ level: "error", message: msg("nameが空です", "POI name is empty."), poiId: p.id });

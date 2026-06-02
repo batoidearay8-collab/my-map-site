@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ConfigSchema, PoiSchema, CategorySchema, type AppConfig, type Poi, type Category } from "../lib/schema";
 import { detectUiLang, normalizeUiLang, type UiLang } from "../lib/i18n";
 import { publicUrl } from "../lib/publicUrl";
+import { scheduleBuilderSave, loadBuilderState } from "../lib/builderPersist";
 
 type BuilderAssets = {
   floorFile?: File;                      // Single-floor (legacy)
@@ -215,7 +216,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (template === "tourism") {
       next.mode = "outdoor";
       next.privacy.hideExactOutdoorLocationByDefault = false;
-    } else if (template === "event") {
+    } else if (template === "event" || template === "school_festival") {
       next.mode = "indoor";
       next.privacy.hideExactOutdoorLocationByDefault = true;
     } else {
@@ -373,3 +374,70 @@ undoBuilder: () => {
   });
 }
 }));
+
+// ─────────────────────────────────────────────
+// Auto-save builder data to localStorage (BUG #1 fix)
+// Subscribes to store changes and writes a debounced snapshot.
+// ─────────────────────────────────────────────
+{
+  let prev = useAppStore.getState();
+  useAppStore.subscribe((state) => {
+    // Only save if builder-relevant fields actually changed
+    const changed =
+      state.builderConfig !== prev.builderConfig ||
+      state.builderPois !== prev.builderPois ||
+      state.builderCategories !== prev.builderCategories;
+    prev = state;
+    if (!changed) return;
+    if (!state.builderConfig) return;
+
+    const hadAssets =
+      !!state.builderAssets.floorFile ||
+      Object.keys(state.builderAssets.floorFiles).length > 0 ||
+      Object.keys(state.builderAssets.images).length > 0;
+
+    scheduleBuilderSave({
+      builderConfig: state.builderConfig,
+      builderPois: state.builderPois,
+      builderCategories: state.builderCategories,
+      hadAssets,
+    });
+  });
+}
+
+/**
+ * Restore previously saved builder draft on startup, if present.
+ * Returns the timestamp of the saved snapshot, or null.
+ * Does NOT restore uploaded image/floor files (those need re-upload).
+ */
+export function restoreBuilderDraftIfAny(): { restored: boolean; hadAssets: boolean; timestamp: number | null } {
+  try {
+    const saved = loadBuilderState();
+    if (!saved || !saved.builderConfig) {
+      return { restored: false, hadAssets: false, timestamp: null };
+    }
+    // Validate the saved data with Zod (may have schema changes between versions)
+    const cfg = ConfigSchema.parse(saved.builderConfig);
+    const pois = z.array(PoiSchema).parse(saved.builderPois ?? []);
+    const cats = z.array(CategorySchema).parse(saved.builderCategories ?? []);
+
+    useAppStore.setState({
+      builderConfig: cfg,
+      builderPois: pois,
+      builderCategories: cats,
+    });
+
+    const ts = (() => {
+      try {
+        const raw = localStorage.getItem("atlaskobo_builder_v1_ts");
+        return raw ? parseInt(raw, 10) : null;
+      } catch { return null; }
+    })();
+
+    return { restored: true, hadAssets: !!saved.hadAssets, timestamp: ts };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("[AtlasKobo] Failed to restore builder draft:", err);
+    return { restored: false, hadAssets: false, timestamp: null };
+  }
+}

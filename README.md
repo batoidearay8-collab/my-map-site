@@ -92,3 +92,30 @@ tourism / live / festival / school_festival / disaster / outdoor_activity / conv
 - **モバイル対応**: ビルダーのレスポンシブ改善
 - **リスト表示改善**: ホバーエフェクト、アクセントボーダー
 - **公開サイトCSS**: ライトモード配色をビルダーと統一
+
+## 注意事項 / Caveats
+
+### Nominatim（住所→座標変換）の利用について
+
+ルート検索の住所入力機能は **OpenStreetMap Nominatim** の無料公開APIを使っています。これは [OSM Foundation のポリシー](https://operations.osmfoundation.org/policies/nominatim/) に基づいており、以下の制限があります：
+
+- 1秒あたり最大1リクエスト（このアプリではdebounceで自動制御）
+- ヘビーユース（毎日数千リクエスト超）はNG
+
+**個人サイト・小規模利用なら問題なし**。商用や大量アクセスが見込まれる場合は：
+
+- 自前で [Nominatim をホスト](https://nominatim.org/release-docs/latest/admin/Installation/)する
+- [Mapbox](https://www.mapbox.com/) や [OpenCage](https://opencagedata.com/) などの有料APIに切替える
+
+### CSV出力時の数式インジェクション対策
+
+POI名や説明文に `=`, `+`, `-`, `@` で始まる文字列を入れると、CSV出力時に自動的に `'` プレフィックスが付加されます。これは [OWASP CSV Injection](https://owasp.org/www-community/attacks/CSV_Injection) 対策です。Excel等で開いたときに見た目に `'` が表示される場合がありますが、これは安全のための仕様です。
+
+### 自動保存（v10.6.1+）
+
+ビルダーで作業した内容（設定・POI・カテゴリ）は localStorage に自動保存されます。ブラウザをリロードしたり閉じてもデータは復元されますが、以下は復元されません：
+
+- アップロードした画像（再アップロードが必要）
+- アップロードしたフロア画像（再アップロードが必要）
+
+これらは File オブジェクトのため localStorage に保存できません。代替手段として「Content Pack ZIP」を定期的にダウンロードしておくと、画像も含めて完全なバックアップになります。

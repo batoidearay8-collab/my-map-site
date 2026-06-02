@@ -4,7 +4,9 @@ import { useLocation } from "react-router-dom";
 import * as L from "leaflet";
 import JSZip from "jszip";
 import { z } from "zod";
-import { useAppStore } from "../state/store";
+import { useAppStore, restoreBuilderDraftIfAny } from "../state/store";
+import { MasterModeDialog } from "../components/MasterModeDialog";
+import { isMasterUnlocked, encodeEndpoint, decodeEndpoint, isEncodedValue, maskedValue } from "../lib/masterMode";
 import { ConfigSchema, PoiSchema, CategorySchema, type AppConfig, type Poi, type Category } from "../lib/schema";
 import { parseCategoriesFromCsv, parsePoisFromCsv, exampleCategoriesCsv, examplePoisCsv } from "../lib/csv";
 import { validateAll } from "../lib/validation";
@@ -259,21 +261,104 @@ const onUndo = useCallback(() => {
     try { localStorage.setItem("atlaskobo_tutorial_done", "1"); } catch {}
     setTutorialStep(-1);
   };
+
+  // ─── Master mode (researcher-only access) ───
+  const [masterDialogOpen, setMasterDialogOpen] = useState(false);
+  const [masterUnlocked, setMasterUnlockedState] = useState<boolean>(() => isMasterUnlocked());
+  // Re-check unlock state whenever dialog closes
+  useEffect(() => {
+    if (!masterDialogOpen) {
+      setMasterUnlockedState(isMasterUnlocked());
+    }
+  }, [masterDialogOpen]);
   const tutorialSteps = [
     {
-      ja: { title: "AtlasKoboへようこそ 🗺️", body: "このツールでは、地図サイトを3ステップで作れます。まずはテンプレート（目的）を選びましょう。" },
-      en: { title: "Welcome to AtlasKobo 🗺️", body: "Build a map site in 3 steps. First, pick a template that fits your purpose." },
+      ja: {
+        title: "AtlasKoboへようこそ 🗺️",
+        body: "このツールでは、独自の地図サイトを4つの簡単なステップで作れます。\n\n📋 全体の流れ:\n1. テンプレートを選ぶ\n2. 地点を追加する\n3. 完成イメージを確認する\n4. 公開する（ZIPダウンロード）\n\n所要時間: 約10〜30分",
+      },
+      en: {
+        title: "Welcome to AtlasKobo 🗺️",
+        body: "Build your own map site in 4 simple steps.\n\n📋 Workflow:\n1. Pick a template\n2. Add places\n3. Preview your site\n4. Publish (download ZIP)\n\nEstimated time: 10–30 min",
+      },
       target: 1,
     },
     {
-      ja: { title: "地点を追加しよう 📍", body: "「2.データ・画像」でスポット（マーカー）を追加します。「地点を追加」ボタンを押してみましょう。" },
-      en: { title: "Add places 📍", body: "Go to '2.Data & images' and press 'Add place' to add your first spot." },
+      ja: {
+        title: "ステップ1: テンプレートを選ぶ 🎯",
+        body: "まずは「1.テンプレート」で地図の目的を選びます。\n\n💡 例:\n・観光地紹介 → 観光\n・店舗一覧 → 飲食/小売\n・施設マップ → 学校/オフィス\n\nテンプレートを選ぶと、おすすめのカテゴリ（駐車場・トイレなど）が自動で追加されます。",
+      },
+      en: {
+        title: "Step 1: Pick a Template 🎯",
+        body: "Start at '1.Template' and choose what your map is for.\n\n💡 Examples:\n• Tourism → Sightseeing\n• Stores → Restaurants/Retail\n• Facilities → School/Office\n\nPicking a template auto-adds recommended categories (parking, toilets, etc.).",
+      },
+      target: 1,
+    },
+    {
+      ja: {
+        title: "屋外?屋内? モードを選択 🏞️",
+        body: "テンプレート選択時に「屋外」or「屋内」を選びます。\n\n🌍 屋外: 通常の地図（OpenStreetMap）の上にマーカーを配置\n🏢 屋内: 自分でアップロードした建物の見取り図にマーカーを配置（複数階対応）\n\n後から変更も可能です。",
+      },
+      en: {
+        title: "Outdoor or Indoor? 🏞️",
+        body: "When picking a template, choose 'Outdoor' or 'Indoor'.\n\n🌍 Outdoor: Place markers on a real-world map (OpenStreetMap)\n🏢 Indoor: Place markers on your uploaded floor plan (multi-floor supported)\n\nYou can change this later.",
+      },
+      target: 1,
+    },
+    {
+      ja: {
+        title: "ステップ2: 地点を追加する 📍",
+        body: "「2.データ・画像」で地点（POI）を追加します。\n\n✏️ 各地点に設定できる項目:\n・名前（日本語/英語）\n・カテゴリ\n・説明文\n・営業時間\n・写真\n・URLリンク\n\n「地点を追加」ボタンから始めましょう。",
+      },
+      en: {
+        title: "Step 2: Add Places 📍",
+        body: "Go to '2.Data & Images' to add your places (POIs).\n\n✏️ Each place can have:\n• Name (Japanese/English)\n• Category\n• Description\n• Business hours\n• Photo\n• External URL\n\nClick 'Add place' to get started.",
+      },
       target: 2,
     },
     {
-      ja: { title: "完成イメージを確認 👀", body: "「3.できあがり確認」で公開サイトのプレビューが見られます。OKなら「4.公開」でZIPをダウンロードして完成！" },
-      en: { title: "Preview & publish 👀", body: "Check '3.Check' to preview the published site. When ready, go to '4.Publish' to download the ZIP." },
+      ja: {
+        title: "地点の位置を決める 🎯",
+        body: "屋外モードなら、地図上をクリックして緯度・経度を設定。\n屋内モードなら、フロア画像上をクリックして位置を指定します。\n\n💡 ヒント: 「3.できあがり確認」のプレビュー上でも、マーカーをドラッグして調整できます。",
+      },
+      en: {
+        title: "Set Place Location 🎯",
+        body: "In outdoor mode, click the map to set latitude/longitude.\nIn indoor mode, click your floor plan to position the marker.\n\n💡 Tip: You can also drag markers in the '3.Preview' step to fine-tune positions.",
+      },
+      target: 2,
+    },
+    {
+      ja: {
+        title: "カテゴリで整理しよう 🏷️",
+        body: "下部の「カテゴリ管理」で地点を分類します。\n\n🎨 カテゴリには色とアイコンを設定できます:\n例: 🍜 ラーメン店 (赤)\n   ☕ カフェ (茶)\n   🅿️ 駐車場 (グレー)\n\nビューアー側で、ユーザーがカテゴリでフィルタできるようになります。",
+      },
+      en: {
+        title: "Organize with Categories 🏷️",
+        body: "Use 'Category Management' below to classify places.\n\n🎨 Each category gets a color and icon:\nExamples: 🍜 Ramen (red)\n        ☕ Cafe (brown)\n        🅿️ Parking (gray)\n\nViewers can then filter by category.",
+      },
+      target: 2,
+    },
+    {
+      ja: {
+        title: "ステップ3: 完成イメージを確認 👀",
+        body: "「3.できあがり確認」で公開サイトのプレビューが見られます。\n\n✅ ここでチェック:\n・マーカーの位置は正しい?\n・カテゴリの色は綺麗?\n・モバイルでも見やすい?\n・「問題」タブで設定漏れがないか確認\n\n気になる点があれば「2.」に戻って修正しましょう。",
+      },
+      en: {
+        title: "Step 3: Preview Your Site 👀",
+        body: "Check '3.Preview' to see how your published site will look.\n\n✅ Things to verify:\n• Marker positions correct?\n• Category colors look good?\n• Mobile-friendly?\n• Check the 'Issues' tab for any setup gaps\n\nGo back to step 2 to make adjustments if needed.",
+      },
       target: 3,
+    },
+    {
+      ja: {
+        title: "ステップ4: 公開しよう 🚀",
+        body: "「4.公開」でデザインのカラーテンプレートを選び、「公開用ZIPをダウンロード」をクリック。\n\n📦 ダウンロードしたZIPは:\n・GitHub Pages、Netlify、Vercelなどに無料公開できます\n・自分のサーバーにアップロード可能\n・PWA対応でオフラインでも動きます\n\nこのチュートリアルは、いつでも上部の「？ヘルプ」ボタンから再表示できます。",
+      },
+      en: {
+        title: "Step 4: Publish! 🚀",
+        body: "On '4.Publish', pick a color template and click 'Download Publish ZIP'.\n\n📦 The ZIP can be deployed to:\n• GitHub Pages, Netlify, Vercel (all free)\n• Your own web server\n• Works offline as a PWA\n\nYou can re-open this tutorial anytime from the '? Help' button in the top bar.",
+      },
+      target: 4,
     },
   ] as const;
 
@@ -331,12 +416,18 @@ const onUndo = useCallback(() => {
     },
     school_festival: {
       ja: "文化祭", en: "School fest", icon: "🏫",
-      needs: ["スケジュール", "展示", "食べ物"],
+      needs: ["屋内マップ", "複数フロア", "QRコード配布", "入退口表示"],
       categories: [
-        { category: "展示", label: "展示", labelEn: "Exhibit", icon: "🎨", color: "#9b59b6" },
-        { category: "食べ物", label: "食べ物", labelEn: "Food", icon: "🍱", color: "#e67e22" },
-        { category: "ステージ", label: "ステージ", labelEn: "Stage", icon: "🎭", color: "#e74c3c" },
-        { category: "トイレ", label: "トイレ", labelEn: "Toilet", icon: "🚻", color: "#95a5a6" },
+        { category: "stage",      label: "ステージ",  labelEn: "Stage",        icon: "🎭", color: "#e74c3c" },
+        { category: "exhibit",    label: "教室企画",  labelEn: "Classroom",    icon: "🏫", color: "#9b59b6" },
+        { category: "food",       label: "模擬店",    labelEn: "Food stall",   icon: "🍴", color: "#e67e22" },
+        { category: "reception",  label: "受付",      labelEn: "Reception",    icon: "📍", color: "#16a085" },
+        { category: "entrance",   label: "入退口",    labelEn: "Entrance",     icon: "🚪", color: "#34495e" },
+        { category: "toilet",     label: "トイレ",    labelEn: "Toilet",       icon: "🚻", color: "#95a5a6" },
+        { category: "firstaid",   label: "救護室",    labelEn: "First aid",    icon: "🏥", color: "#e74c3c" },
+        { category: "parking",    label: "駐車場",    labelEn: "Parking",      icon: "🅿️", color: "#3498db" },
+        { category: "stairs",     label: "階段",      labelEn: "Stairs",       icon: "🪜", color: "#7f8c8d" },
+        { category: "elevator",   label: "EV",        labelEn: "Elevator",     icon: "🛗", color: "#7f8c8d" },
       ],
     },
     disaster: {
@@ -611,6 +702,12 @@ const onUndo = useCallback(() => {
       return JSON.parse(txt) as T;
     }
 
+    // ─────────────────────────────────────────────
+    // BUG #6 fix: Atomic import.
+    // Assemble ALL data first (config, pois, categories, all assets) BEFORE
+    // committing any of it. This way, if any step fails partway through,
+    // the user's existing draft remains intact.
+    // ─────────────────────────────────────────────
     const rawCfg = await readJson<any>("data/config.json");
     const rawPois = await readJson<any>("data/pois.json");
     const rawCats = await readJson<any>("data/categories.json");
@@ -619,12 +716,13 @@ const onUndo = useCallback(() => {
     const nextPois = z.array(PoiSchema).parse(rawPois);
     const nextCats = z.array(CategorySchema).parse(rawCats);
 
-    // Replace working data
-    setBuilderConfig(nextCfg);
-    setBuilderData(nextPois, nextCats);
-
-    // Replace assets (floor + images)
-    clearAllBuilderAssets();
+    // Stage all asset blobs in memory before committing
+    type StagedAssets = {
+      floor?: { url: string; file: File };
+      floorMulti: Record<string, File>;
+      images: Record<string, File>;
+    };
+    const staged: StagedAssets = { floorMulti: {}, images: {} };
 
     const floorUrl = nextCfg.mode === "indoor" ? (nextCfg.indoor?.imageUrl || "") : "";
     const floorPath = floorUrl.replace(/^\//, "");
@@ -634,11 +732,10 @@ const onUndo = useCallback(() => {
         const blob = await floorEntry.async("blob");
         const name = floorPath.split("/").pop() || "floor.png";
         const floorFile = new File([blob], name, { type: blob.type || "image/png" });
-        setBuilderAsset("floor", floorUrl, floorFile);
+        staged.floor = { url: floorUrl, file: floorFile };
       }
     }
 
-    // Multi-floor images
     if (nextCfg.mode === "indoor" && nextCfg.indoor?.floors?.length) {
       for (const floor of nextCfg.indoor.floors) {
         const fUrl = (floor.imageUrl || "").replace(/^\//, "");
@@ -648,7 +745,7 @@ const onUndo = useCallback(() => {
           const blob = await fEntry.async("blob");
           const name = fUrl.split("/").pop() || `floor_${floor.id}.png`;
           const file = new File([blob], name, { type: blob.type || "image/png" });
-          setBuilderAsset("floorMulti", floor.id, file);
+          staged.floorMulti[floor.id] = file;
         }
       }
     }
@@ -661,7 +758,22 @@ const onUndo = useCallback(() => {
       const name = p.split("/").pop() || "image";
       const key = "/" + p.slice(prefix.length);
       const imgFile = new File([blob], name, { type: blob.type || "" });
-      setBuilderAsset("image", key, imgFile);
+      staged.images[key] = imgFile;
+    }
+
+    // ── COMMIT (everything ready, now apply atomically) ──
+    setBuilderConfig(nextCfg);
+    setBuilderData(nextPois, nextCats);
+    clearAllBuilderAssets();
+
+    if (staged.floor) {
+      setBuilderAsset("floor", staged.floor.url, staged.floor.file);
+    }
+    for (const [floorId, file] of Object.entries(staged.floorMulti)) {
+      setBuilderAsset("floorMulti", floorId, file);
+    }
+    for (const [key, file] of Object.entries(staged.images)) {
+      setBuilderAsset("image", key, file);
     }
 
     // Set language to the imported map default
@@ -700,13 +812,34 @@ const onUndo = useCallback(() => {
   // Without this, the BuilderPage receives null cfg and renders nothing → blank screen.
   // ─────────────────────────────────────────────
   const startNewMap = useAppStore(s => s.startNewMap);
+  const draftRestoredRef = useRef(false);
   useEffect(() => {
-    // Only auto-init for the normal "作る" flow, not the import flow
-    // (import flow is handled separately at the cfg-null branch).
+    if (draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+
+    // BUG #1 fix: Try to restore previously saved draft first
     if (!builderConfig && !importFlow) {
-      startNewMap();
+      const result = restoreBuilderDraftIfAny();
+      if (result.restored) {
+        // Show notice if assets were lost (uploaded images can't survive page reload)
+        if (result.hadAssets) {
+          const ts = result.timestamp ? new Date(result.timestamp).toLocaleString() : "";
+          toast.info(uiLang === "ja"
+            ? `前回の作業（${ts}）を復元しました。画像/フロア画像は再アップロードが必要です。`
+            : `Restored your previous work (${ts}). Please re-upload images/floor plans.`,
+            8000);
+        } else {
+          toast.success(uiLang === "ja"
+            ? "前回の作業を復元しました。"
+            : "Restored your previous work.");
+        }
+      } else {
+        // No draft → start fresh
+        startNewMap();
+      }
     }
-  }, [builderConfig, importFlow, startNewMap]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Create / revoke object URLs for immediate preview of uploaded assets
   useEffect(() => {
@@ -913,11 +1046,30 @@ const onUndo = useCallback(() => {
 
   const deletePoi = useCallback((id: string) => {
     if (!cfg) return;
+    const target = builderPois.find(p => p.id === id);
+
+    // BUG #8 fix: Warn if deleting a connector POI orphans its group
+    if (target && target.connectorType && target.connectorGroup) {
+      const sameGroup = builderPois.filter(p =>
+        p.id !== id && p.connectorGroup === target.connectorGroup
+      );
+      // If after removal, the group has only 1 (or 0) members on a single floor,
+      // the group can no longer connect floors.
+      const remainingFloors = new Set(sameGroup.map(p => p.floor || ""));
+      if (remainingFloors.size < 2) {
+        const groupName = target.connectorGroup;
+        const ok = window.confirm(uiLang === "ja"
+          ? `この接続点を削除すると、接続グループ「${groupName}」がフロア間ルートを提供できなくなります。続行しますか？`
+          : `Deleting this connector will leave the group "${groupName}" unable to provide cross-floor routes. Continue?`);
+        if (!ok) return;
+      }
+    }
+
     const nextPois = builderPois.filter(p => p.id !== id);
     setBuilderData(nextPois, builderCategories);
     setPoisCsv(poisToCsv(nextPois, supportedLangs, defaultLang));
     if (selectedPoiId === id) setSelectedPoiId(nextPois[0]?.id ?? "");
-  }, [cfg, builderPois, builderCategories, selectedPoiId, setBuilderData, supportedLangs, defaultLang]);
+  }, [cfg, builderPois, builderCategories, selectedPoiId, setBuilderData, supportedLangs, defaultLang, uiLang]);
 
   const updateCategory = useCallback((key: string, patch: Partial<Category>) => {
     if (!cfg) return;
@@ -1153,18 +1305,6 @@ const onUndo = useCallback(() => {
     return <main className="layout"><section className="pane"><div className="card">{uiLang === "ja" ? "読み込み中…" : "Loading…"}</div></section></main>;
   }
 
-  // Defensive: if builderConfig is still null on first render (before useEffect runs),
-  // show a minimal loading state instead of crashing on cfg.title/cfg.mode access below.
-  if (!cfg) {
-    return (
-      <main className="layout layoutSingle" style={{ padding: 40, textAlign: "center" }}>
-        <div style={{ color: "var(--muted)", fontSize: 14 }}>
-          {uiLang === "ja" ? "読み込み中…" : "Loading…"}
-        </div>
-      </main>
-    );
-  }
-
   // In the builder, show the field for the current language without falling back.
   // (If we fallback, beginners may think they're editing Japanese but actually edit English, etc.)
   const titleEditing = (effectiveContentLang === defaultLang)
@@ -1261,6 +1401,22 @@ const onUndo = useCallback(() => {
             <button className={"btn " + (step === 4 ? "primary" : "")} onClick={() => setStep(4)} disabled={!canNext4}>{t(uiLang, importFlow ? "step_publish_5" : "step_publish")}</button>
 
 <button className={"btn soft"} onClick={onUndo} disabled={!canUndo} title={uiLang === "ja" ? "Ctrl+Z: 元に戻す" : "Ctrl+Z: Undo"} aria-label={t(uiLang, "undo")} style={{ width: 44, padding: 0, fontSize: 20, lineHeight: "44px" }}>↰</button>
+<button
+  className="btn soft"
+  onClick={() => setTutorialStep(0)}
+  title={uiLang === "ja" ? "チュートリアルを再表示" : "Show tutorial"}
+  aria-label={uiLang === "ja" ? "ヘルプ" : "Help"}
+  style={{ width: 44, padding: 0, fontSize: 18, lineHeight: "44px", fontWeight: 700 }}
+>?</button>
+<button
+  className={"btn " + (masterUnlocked ? "primary" : "soft")}
+  onClick={() => setMasterDialogOpen(true)}
+  title={uiLang === "ja"
+    ? (masterUnlocked ? "マスターモード（解除中）" : "マスターモード")
+    : (masterUnlocked ? "Master mode (unlocked)" : "Master mode")}
+  aria-label={uiLang === "ja" ? "マスターモード" : "Master mode"}
+  style={{ width: 44, padding: 0, fontSize: 16, lineHeight: "44px" }}
+>{masterUnlocked ? "🔓" : "🔐"}</button>
 <span className={"savePill " + (csvApplyState === "pending" ? "unsaved" : "saved")} title={uiLang === "ja" ? "CSVに反映されていない変更があるかを表示します" : "Shows whether there are changes not written to CSV"}>
   {csvApplyState === "pending" ? "⚠️" : "✅"} {t(uiLang, csvApplyState === "pending" ? "unsaved" : "saved")}
 </span>
@@ -1611,6 +1767,41 @@ const onUndo = useCallback(() => {
                           {t(uiLang, "field_url")}
                           <input value={selectedPoi.url ?? ""} onChange={(e) => updatePoi(selectedPoi.id, { url: e.target.value })} placeholder="https://..." />
                         </label>
+
+{cfg.mode === "indoor" ? (
+  <>
+    <label>
+      {uiLang === "ja" ? "接続種別 (階段/EV)" : "Connector type"}
+      <select
+        value={selectedPoi.connectorType ?? ""}
+        onChange={(e) => updatePoi(selectedPoi.id, { connectorType: e.target.value as any })}
+      >
+        <option value="">{uiLang === "ja" ? "（通常の地点）" : "(regular POI)"}</option>
+        <option value="stairs">{uiLang === "ja" ? "🪜 階段" : "🪜 Stairs"}</option>
+        <option value="elevator">{uiLang === "ja" ? "🛗 エレベーター" : "🛗 Elevator"}</option>
+        <option value="escalator">{uiLang === "ja" ? "🪜 エスカレーター" : "🪜 Escalator"}</option>
+        <option value="ramp">{uiLang === "ja" ? "♿ スロープ" : "♿ Ramp"}</option>
+      </select>
+    </label>
+    {(selectedPoi.connectorType ?? "") ? (
+      <label>
+        {uiLang === "ja" ? "接続グループ" : "Connector group"}
+        <input
+          value={selectedPoi.connectorGroup ?? ""}
+          onChange={(e) => updatePoi(selectedPoi.id, { connectorGroup: e.target.value })}
+          placeholder={uiLang === "ja" ? "例: 階段A, EV1" : "e.g. stairA, ev1"}
+        />
+      </label>
+    ) : null}
+    {(selectedPoi.connectorType ?? "") ? (
+      <div className="hint fullSpan">
+        {uiLang === "ja"
+          ? "💡 同じ「接続グループ」名を別フロアの階段/EVにも設定すると、自動的に接続されます。例: 1Fと2Fの階段Aを両方「階段A」にすると、フロア間ルートが計算されます。"
+          : "💡 Set the same 'Connector group' on stairs/EV on different floors to link them. E.g., setting both 1F's and 2F's stairs to 'stairA' enables cross-floor routing."}
+      </div>
+    ) : null}
+  </>
+) : null}
 
 {cfg.mode === "outdoor" ? (
   <>
@@ -2311,6 +2502,218 @@ const onUndo = useCallback(() => {
         {/* STEP 4 */}
         {step === 4 ? (
           <div className="cards">
+            {/* ────────────────────────────
+                Research mode (academic study) settings
+                ──────────────────────────── */}
+            <div className="card">
+              <div className="sectionTitle">
+                {uiLang === "ja" ? "🔬 研究モード（学術利用）" : "🔬 Research Mode (academic use)"}
+              </div>
+              <div className="hint">
+                {uiLang === "ja"
+                  ? "学術研究目的でこの地図を使う場合、利用者向けの同意ダイアログとアンケートボタンを表示できます。匿名のログ収集も任意で可能です。"
+                  : "If using this map for academic research, you can display a consent dialog and survey button to viewers, and optionally collect anonymous interaction logs."}
+              </div>
+
+              <div className="row" style={{ alignItems: "center", marginTop: 12, gap: 8 }}>
+                <input
+                  type="checkbox"
+                  id="research-enabled"
+                  checked={!!cfg.research?.enabled}
+                  onChange={(e) => {
+                    const next: AppConfig = {
+                      ...cfg,
+                      research: {
+                        ...(cfg.research ?? { enabled: false, surveyUrl: "", projectName: "", contactEmail: "", collectLogs: false, logEndpoint: "" }),
+                        enabled: e.target.checked,
+                      },
+                    };
+                    setBuilderConfig(next);
+                  }}
+                />
+                <label htmlFor="research-enabled" style={{ fontWeight: 500, cursor: "pointer" }}>
+                  {uiLang === "ja" ? "研究モードを有効にする" : "Enable research mode"}
+                </label>
+              </div>
+
+              {cfg.research?.enabled ? (
+                <div style={{ marginTop: 16, paddingLeft: 12, borderLeft: "3px solid var(--accent-soft)" }}>
+                  <label className="sectionTitleOnly" style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
+                    {uiLang === "ja" ? "プロジェクト名（同意ダイアログに表示）" : "Project name (shown in consent dialog)"}
+                  </label>
+                  <input
+                    type="text"
+                    value={cfg.research?.projectName ?? ""}
+                    onChange={(e) => {
+                      const next: AppConfig = {
+                        ...cfg,
+                        research: { ...(cfg.research!), projectName: e.target.value },
+                      };
+                      setBuilderConfig(next);
+                    }}
+                    placeholder={uiLang === "ja" ? "例: 高校文化祭マップ研究 2025" : "e.g. School Festival Map Study 2025"}
+                  />
+
+                  <label className="sectionTitleOnly" style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginTop: 12, marginBottom: 4 }}>
+                    {uiLang === "ja" ? "連絡先メールアドレス（撤回・問い合わせ用）" : "Contact email (for withdrawal/questions)"}
+                  </label>
+                  <input
+                    type="email"
+                    value={cfg.research?.contactEmail ?? ""}
+                    onChange={(e) => {
+                      const next: AppConfig = {
+                        ...cfg,
+                        research: { ...(cfg.research!), contactEmail: e.target.value },
+                      };
+                      setBuilderConfig(next);
+                    }}
+                    placeholder="researcher@example.com"
+                  />
+
+                  <label className="sectionTitleOnly" style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginTop: 12, marginBottom: 4 }}>
+                    {uiLang === "ja" ? "📝 アンケートURL（Google Forms等）" : "📝 Survey URL (Google Forms, etc.)"}
+                  </label>
+                  <input
+                    type="url"
+                    value={cfg.research?.surveyUrl ?? ""}
+                    onChange={(e) => {
+                      const next: AppConfig = {
+                        ...cfg,
+                        research: { ...(cfg.research!), surveyUrl: e.target.value },
+                      };
+                      setBuilderConfig(next);
+                    }}
+                    placeholder="https://forms.gle/..."
+                  />
+                  <div className="hint" style={{ fontSize: 11, marginTop: 4 }}>
+                    {uiLang === "ja"
+                      ? "設定すると、地図画面の右下に「📝 アンケート」ボタンが表示されます。"
+                      : "When set, a '📝 Survey' button will appear at the bottom-right of the map."}
+                  </div>
+
+                  <div className="row" style={{ alignItems: "center", marginTop: 16, gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      id="research-logs"
+                      checked={!!cfg.research?.collectLogs}
+                      onChange={(e) => {
+                        const next: AppConfig = {
+                          ...cfg,
+                          research: { ...(cfg.research!), collectLogs: e.target.checked },
+                        };
+                        setBuilderConfig(next);
+                      }}
+                    />
+                    <label htmlFor="research-logs" style={{ fontWeight: 500, cursor: "pointer" }}>
+                      {uiLang === "ja" ? "匿名利用ログを収集する（同意した利用者のみ）" : "Collect anonymous usage logs (consenting users only)"}
+                    </label>
+                  </div>
+                  <div className="hint" style={{ fontSize: 11, marginTop: 4 }}>
+                    {uiLang === "ja"
+                      ? "POI閲覧、検索ワード、フロア切替などを匿名で記録します。利用者の同意がない限り、データは収集されません。"
+                      : "Records POI views, searches, floor switches anonymously. No data is collected without explicit user consent."}
+                  </div>
+
+                  {cfg.research?.collectLogs ? (
+                    <div style={{ marginTop: 12 }}>
+                      <label className="sectionTitleOnly" style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
+                        🔐 {uiLang === "ja" ? "ログ送信先URL（マスターモード保護・任意）" : "Log endpoint URL (master-mode protected, optional)"}
+                      </label>
+                      {masterUnlocked ? (
+                        <>
+                          <input
+                            type="url"
+                            value={decodeEndpoint(cfg.research?.logEndpoint ?? "")}
+                            onChange={(e) => {
+                              const next: AppConfig = {
+                                ...cfg,
+                                research: {
+                                  ...(cfg.research!),
+                                  // Encode before saving so it's not readable in plain config.json
+                                  logEndpoint: e.target.value ? encodeEndpoint(e.target.value) : "",
+                                },
+                              };
+                              setBuilderConfig(next);
+                            }}
+                            placeholder="https://..."
+                          />
+                          <div className="hint" style={{ fontSize: 11, marginTop: 4 }}>
+                            ✓ {uiLang === "ja"
+                              ? "マスターモード解除中。値は暗号化されてZIPに含まれます。空ならlocalStorageのみ。"
+                              : "Master mode unlocked. Value is encrypted in the ZIP. Empty = localStorage only."}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div
+                            style={{
+                              padding: "8px 12px",
+                              background: "var(--surface-2)",
+                              border: "1px dashed var(--line)",
+                              borderRadius: 6,
+                              color: "var(--text-muted)",
+                              fontSize: 13,
+                              fontFamily: "monospace",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 8,
+                            }}
+                          >
+                            <span>
+                              {cfg.research?.logEndpoint
+                                ? maskedValue("set", 0)
+                                : (uiLang === "ja" ? "（未設定）" : "(not set)")}
+                            </span>
+                            <button
+                              className="btn"
+                              style={{ padding: "2px 10px", fontSize: 11 }}
+                              onClick={() => setMasterDialogOpen(true)}
+                            >
+                              🔐 {uiLang === "ja" ? "ロック解除して編集" : "Unlock to edit"}
+                            </button>
+                          </div>
+                          <div className="hint" style={{ fontSize: 11, marginTop: 4 }}>
+                            {uiLang === "ja"
+                              ? "この項目は研究者専用です。マスターパスワードでロックを解除してください。"
+                              : "This field is researcher-only. Unlock with master password to edit."}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {/* Researcher-only: View collected logs (only visible when unlocked) */}
+                  {masterUnlocked && cfg.research?.collectLogs ? (
+                    <div style={{ marginTop: 16, padding: 12, background: "var(--surface-2)", borderRadius: 6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+                        🔬 {uiLang === "ja" ? "収集データ管理（研究者専用）" : "Collected Data Management (researcher only)"}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button
+                          className="btn"
+                          style={{ fontSize: 12 }}
+                          onClick={() => {
+                            // Open a new tab to viewer with a special master-mode link
+                            // that auto-shows the data export panel
+                            const url = location.href.replace(/#\/builder.*/, "#/?master=1");
+                            window.open(url, "_blank");
+                          }}
+                        >
+                          👁️ {uiLang === "ja" ? "ビューワーでデータ確認" : "View in viewer"}
+                        </button>
+                      </div>
+                      <div className="hint" style={{ fontSize: 11, marginTop: 6 }}>
+                        {uiLang === "ja"
+                          ? "ビューワーで?master=1付きで開くと、収集ログをCSVエクスポートできます。"
+                          : "Opens viewer with master flag, allowing CSV export of collected logs."}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+
             <div className="card">
               <div className="sectionTitle">{t(uiLang, "publish_title")}</div>
               <div className="hint">{t(uiLang, "publish_hint")}</div>
@@ -2338,6 +2741,141 @@ const onUndo = useCallback(() => {
                 </div>
               </div>
 
+              {/* ─────────────────────────────────────────────
+                  Research mode configuration
+                  ───────────────────────────────────────────── */}
+              <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--line)" }}>
+                <div className="sectionTitle">
+                  {uiLang === "ja" ? "🔬 研究モード（任意）" : "🔬 Research Mode (optional)"}
+                </div>
+                <div className="hint">
+                  {uiLang === "ja"
+                    ? "学術研究や授業実践でこのマップを使う場合、来場者にアンケート依頼と匿名ログ収集ができます。倫理審査・同意取得の上でご利用ください。"
+                    : "For academic research or classroom use: enable a survey link and anonymous usage logs. Make sure you have proper consent."}
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={!!cfg.research?.enabled}
+                      onChange={(e) => setBuilderConfig({
+                        ...cfg,
+                        research: {
+                          enabled: e.target.checked,
+                          surveyUrl: cfg.research?.surveyUrl ?? "",
+                          projectName: cfg.research?.projectName ?? "",
+                          contactEmail: cfg.research?.contactEmail ?? "",
+                          collectLogs: cfg.research?.collectLogs ?? false,
+                          logEndpoint: cfg.research?.logEndpoint ?? "",
+                        },
+                      })}
+                    />
+                    <strong>{uiLang === "ja" ? "研究モードを有効にする" : "Enable research mode"}</strong>
+                  </label>
+                </div>
+
+                {cfg.research?.enabled ? (
+                  <div style={{ marginTop: 12, paddingLeft: 24, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <label style={{ display: "block" }}>
+                      <span style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
+                        {uiLang === "ja" ? "研究プロジェクト名" : "Project name"}
+                      </span>
+                      <input
+                        type="text"
+                        value={cfg.research?.projectName ?? ""}
+                        onChange={(e) => setBuilderConfig({
+                          ...cfg,
+                          research: { ...cfg.research!, projectName: e.target.value },
+                        })}
+                        placeholder={uiLang === "ja" ? "例: ○○高校文化祭マップ研究" : "e.g. School Festival Map Study"}
+                        style={{ width: "100%" }}
+                      />
+                    </label>
+
+                    <label style={{ display: "block" }}>
+                      <span style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
+                        {uiLang === "ja" ? "アンケートURL（Google Forms等）" : "Survey URL (Google Forms, etc.)"}
+                      </span>
+                      <input
+                        type="url"
+                        value={cfg.research?.surveyUrl ?? ""}
+                        onChange={(e) => setBuilderConfig({
+                          ...cfg,
+                          research: { ...cfg.research!, surveyUrl: e.target.value },
+                        })}
+                        placeholder="https://docs.google.com/forms/d/e/.../viewform"
+                        style={{ width: "100%" }}
+                      />
+                      <span className="hint" style={{ display: "block", fontSize: 11, marginTop: 2 }}>
+                        {uiLang === "ja"
+                          ? "設定すると、マップ右下に「📝 アンケート」ボタンが表示されます。"
+                          : "Adds a 📝 Survey button to the bottom-right of the map."}
+                      </span>
+                    </label>
+
+                    <label style={{ display: "block" }}>
+                      <span style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
+                        {uiLang === "ja" ? "問い合わせメールアドレス" : "Contact email"}
+                      </span>
+                      <input
+                        type="email"
+                        value={cfg.research?.contactEmail ?? ""}
+                        onChange={(e) => setBuilderConfig({
+                          ...cfg,
+                          research: { ...cfg.research!, contactEmail: e.target.value },
+                        })}
+                        placeholder="researcher@example.ac.jp"
+                        style={{ width: "100%" }}
+                      />
+                    </label>
+
+                    <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={!!cfg.research?.collectLogs}
+                        onChange={(e) => setBuilderConfig({
+                          ...cfg,
+                          research: { ...cfg.research!, collectLogs: e.target.checked },
+                        })}
+                        style={{ marginTop: 3 }}
+                      />
+                      <span>
+                        <strong>{uiLang === "ja" ? "匿名利用ログを収集する" : "Collect anonymous usage logs"}</strong>
+                        <span className="hint" style={{ display: "block", fontSize: 11 }}>
+                          {uiLang === "ja"
+                            ? "POI閲覧、検索、フロア切替などを匿名で記録します。同意ダイアログが利用者に表示されます。"
+                            : "Records POI views, searches, floor changes anonymously. Consent dialog is shown to users."}
+                        </span>
+                      </span>
+                    </label>
+
+                    {cfg.research?.collectLogs ? (
+                      <label style={{ display: "block" }}>
+                        <span style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
+                          {uiLang === "ja" ? "ログ送信先URL（任意・空ならlocalStorageのみ）" : "Log endpoint URL (optional)"}
+                        </span>
+                        <input
+                          type="url"
+                          value={cfg.research?.logEndpoint ?? ""}
+                          onChange={(e) => setBuilderConfig({
+                            ...cfg,
+                            research: { ...cfg.research!, logEndpoint: e.target.value },
+                          })}
+                          placeholder="https://your-webhook.example.com/logs"
+                          style={{ width: "100%" }}
+                        />
+                        <span className="hint" style={{ display: "block", fontSize: 11, marginTop: 2 }}>
+                          {uiLang === "ja"
+                            ? "未設定の場合、ログはブラウザのlocalStorageに保存されます。データは利用者の端末から手動で取り出す必要があります。"
+                            : "If unset, logs stay in localStorage on the user's device only."}
+                        </span>
+                      </label>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
               <div className="row" style={{ gap: 10, marginTop: 14, flexWrap: "wrap", justifyContent: "flex-start" }}>
                 <button
                   className="btn primary"
@@ -2355,6 +2893,11 @@ const onUndo = useCallback(() => {
                         themePreset: publishTheme,
                       });
                       downloadBlob(blob, "site.zip");
+                    } catch (err: any) {
+                      // BUG #3 fix: surface ZIP export errors so user knows download failed
+                      toast.error(uiLang === "ja"
+                        ? `ZIP生成に失敗しました: ${err?.message ?? err}`
+                        : `Failed to generate ZIP: ${err?.message ?? err}`);
                     } finally {
                       setExportLoading("");
                     }
@@ -2383,6 +2926,10 @@ const onUndo = useCallback(() => {
                         images: builderAssets.images,
                       });
                       downloadBlob(blob, "content-pack.zip");
+                    } catch (err: any) {
+                      toast.error(uiLang === "ja"
+                        ? `ZIP生成に失敗しました: ${err?.message ?? err}`
+                        : `Failed to generate ZIP: ${err?.message ?? err}`);
                     } finally {
                       setExportLoading("");
                     }
@@ -2448,6 +2995,14 @@ const onUndo = useCallback(() => {
           onClose={() => setQrOpen(false)}
           uiLang={uiLang}
           url={location.href.replace(/#\/builder.*/, "#/" )}
+        />
+      ) : null}
+
+      {masterDialogOpen ? (
+        <MasterModeDialog
+          uiLang={uiLang === "en" ? "en" : "ja"}
+          onClose={() => setMasterDialogOpen(false)}
+          onUnlocked={() => setMasterUnlockedState(true)}
         />
       ) : null}
     </main>

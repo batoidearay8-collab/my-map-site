@@ -43,6 +43,33 @@ export const ConfigSchema = z.object({
     hideExactOutdoorLocationByDefault: z.boolean().default(true)
   }),
 
+  /** Research mode — for academic studies using this map.
+   *  When enabled, shows a consent dialog on first visit and (with consent)
+   *  collects anonymous usage logs that can be exported for analysis.
+   *  See: src/lib/researchLog.ts */
+  research: z.object({
+    /** Master switch: enable research features in the published viewer */
+    enabled: z.boolean().default(false),
+    /** URL of an external survey (Google Forms, etc.). Renders as a "📝 アンケート" button in the viewer. */
+    surveyUrl: z.string().default(""),
+    /** Optional research project name shown in the consent dialog */
+    projectName: z.string().default(""),
+    /** Optional contact email for questions/withdrawal */
+    contactEmail: z.string().default(""),
+    /** Whether to collect anonymous interaction logs (POI views, searches, etc.) */
+    collectLogs: z.boolean().default(false),
+    /** External endpoint to POST logs to (Google Forms entry URL or webhook).
+     *  If empty, logs are kept in localStorage only and can be exported manually. */
+    logEndpoint: z.string().default(""),
+  }).optional().default({
+    enabled: false,
+    surveyUrl: "",
+    projectName: "",
+    contactEmail: "",
+    collectLogs: false,
+    logEndpoint: "",
+  }),
+
   outdoor: z.object({
     center: z.tuple([z.number(), z.number()]),
     zoom: z.number().int().min(1).max(20)
@@ -96,7 +123,21 @@ export const PoiSchema = z.object({
   y: z.number().optional(),
 
   /** Floor ID (for multi-floor indoor maps). Empty = default/first floor. */
-  floor: z.string().optional().default("")
+  floor: z.string().optional().default(""),
+
+  /**
+   * Connector type — if this POI is a stairway, elevator, escalator, etc.
+   * Empty = regular POI (not a connector).
+   * Pairs of connectors with the same `connectorGroup` are linked across floors.
+   */
+  connectorType: z.enum(["", "stairs", "elevator", "escalator", "ramp"]).optional().default(""),
+
+  /**
+   * Group ID linking connectors that go between floors.
+   * E.g., "stairA" with two POIs: one on 1F (stairs going up to 2F) and one on 2F (stairs going down to 1F).
+   * Both should share `connectorGroup: "stairA"`. The router treats them as connected.
+   */
+  connectorGroup: z.string().optional().default("")
 });
 
 export type Poi = z.infer<typeof PoiSchema>;

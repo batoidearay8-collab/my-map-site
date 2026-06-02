@@ -1064,3 +1064,319 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .ml8{margin-left:8px}
 .m0{margin:0}
 .btnMd{font-size:13px;padding:6px 14px}
+
+/* ─────────────────────────────────────────────
+ * Route toolbar (top of viewer)
+ * ───────────────────────────────────────────── */
+.routeToolbar{ position: relative; }
+
+.routeBadge{
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.routePanel{
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 1000;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  padding: 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: routePanelIn 0.15s ease-out;
+}
+@keyframes routePanelIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.routePanelHeader{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+}
+
+.routeRow{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.routeRowLabel{
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  min-width: 36px;
+}
+
+.routeSwap{
+  align-self: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: -4px auto;
+  transition: all 0.15s ease;
+}
+.routeSwap:hover{
+  background: var(--accent-dim);
+  color: var(--accent);
+  transform: rotate(180deg);
+}
+
+.routeActions{
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.routeInfo{
+  display: flex;
+  gap: 16px;
+  padding: 10px 12px;
+  background: var(--accent-dim);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+/* ── Endpoint picker (autocomplete dropdown) ── */
+.endpointPicker{
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.endpointInput{
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.endpointDropdown{
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--surface-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.endpointOption{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.1s ease;
+}
+.endpointOption:hover{
+  background: var(--surface-2);
+}
+.endpointCurrent{
+  color: var(--accent);
+  font-weight: 600;
+}
+.endpointIcon{
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+  font-size: 14px;
+}
+.endpointLabel{
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.endpointDivider{
+  height: 1px;
+  background: var(--line);
+  margin: 4px 0;
+}
+.endpointLoading,
+.endpointEmpty{
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .routePanel{
+    position: fixed;
+    top: 70px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: calc(100vh - 90px);
+    overflow-y: auto;
+  }
+}
+
+/* ─────────────────────────────────────────────
+ * Indoor route directions panel (bottom-left, sticky)
+ * ───────────────────────────────────────────── */
+.indoorRoutePanel{
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 800;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 14px 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: routePanelIn 0.2s ease-out;
+}
+
+.indoorRoutePanelHeader{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.indoorRouteSummary{
+  font-size: 13px;
+  color: var(--text);
+  padding: 8px 12px;
+  background: var(--accent-dim);
+  border-radius: var(--r-md);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.indoorRouteArrow{
+  color: var(--accent);
+  font-weight: 700;
+  margin: 0 2px;
+}
+
+.indoorRouteSteps{
+  margin: 0;
+  padding: 0 0 0 22px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-muted);
+  list-style-position: outside;
+}
+.indoorRouteSteps li{
+  padding: 2px 0;
+}
+
+.indoorRouteFloors{
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+/* Indoor route picker (next to search) */
+.indoorRouteSelect{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 640px) {
+  .indoorRoutePanel{
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    max-height: 45vh;
+  }
+}
+
+/* ─────────────────────────────────────────────
+ * Survey FAB (research mode)
+ * ───────────────────────────────────────────── */
+.surveyFab{
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--accent);
+  color: var(--accent-text);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow-lg);
+  z-index: 900;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.surveyFab:hover{
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg), 0 4px 16px rgba(0,0,0,0.2);
+  text-decoration: none;
+}
+.surveyFab:active{
+  transform: translateY(0);
+}
+
+/* On small screens, show only icon to save space */
+@media (max-width: 480px) {
+  .surveyFab{
+    bottom: 16px;
+    right: 16px;
+    padding: 12px;
+    width: 52px;
+    height: 52px;
+    justify-content: center;
+  }
+  .surveyFab > span:not([aria-hidden]){
+    display: none;
+  }
+}

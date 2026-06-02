@@ -3,6 +3,7 @@ import { toast } from "../../components/ToastHost";
 import { exportContentZip, exportSiteZip, downloadBlob, type ThemePreset } from "../../lib/export";
 import { t } from "../../lib/i18n";
 import { QrModal } from "../../components/QrModal";
+import { GitHubDeployPanel } from "../../components/GitHubDeployPanel";
 import type { BuilderContext } from "./types";
 
 export function StepPublish(props: BuilderContext) {
@@ -51,6 +52,10 @@ export function StepPublish(props: BuilderContext) {
                 themePreset: publishTheme,
               });
               downloadBlob(blob, "site.zip");
+            } catch (err: any) {
+              toast.error(uiLang === "ja"
+                ? `ZIP生成に失敗しました: ${err?.message ?? err}`
+                : `Failed to generate ZIP: ${err?.message ?? err}`);
             } finally { setExportLoading(""); }
           }}>
             {t(uiLang, "download_site_zip")}
@@ -68,6 +73,10 @@ export function StepPublish(props: BuilderContext) {
                 floorFile: builderAssets.floorFile, floorFiles: builderAssets.floorFiles, images: builderAssets.images,
               });
               downloadBlob(blob, "content-pack.zip");
+            } catch (err: any) {
+              toast.error(uiLang === "ja"
+                ? `ZIP生成に失敗しました: ${err?.message ?? err}`
+                : `Failed to generate ZIP: ${err?.message ?? err}`);
             } finally { setExportLoading(""); }
           }}>
             {t(uiLang, "download_content_pack")}
@@ -101,6 +110,16 @@ export function StepPublish(props: BuilderContext) {
             </button>
           </div>
         </div>
+
+        {/* GitHub direct deploy (PAT) */}
+        <GitHubDeployPanel
+          uiLang={uiLang === "en" ? "en" : "ja"}
+          exportInput={{
+            config: cfg, pois: builderPois, categories: builderCategories,
+            floorFile: builderAssets.floorFile, floorFiles: builderAssets.floorFiles, images: builderAssets.images,
+            themePreset: publishTheme,
+          }}
+        />
       </div>
 
       {qrOpen ? (

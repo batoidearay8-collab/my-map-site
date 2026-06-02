@@ -10,6 +10,11 @@ import { pickPoiName, pickPoiDescription, pickCategoryLabel } from "../lib/conte
 import { t } from "../lib/i18n";
 import { getOpenStatus, hasBusinessInfo } from "../lib/openStatus";
 import { fetchRoute, formatDuration, formatDistance, type RouteResult } from "../lib/route";
+import { RouteToolbar } from "../components/RouteToolbar";
+import { findIndoorRoute, describeRoute, type IndoorRoute } from "../lib/indoorRoute";
+import { ConsentDialog } from "../components/ConsentDialog";
+import { logEvent, getConsentState, installUnloadFlusher, loadLogs, logsToCsv, clearLogs } from "../lib/researchLog";
+import { decodeEndpoint, isMasterUnlocked, unlockMaster } from "../lib/masterMode";
 
 export function ViewerPage() {
   const { isLoaded, loadFromPublic, config, pois, categories, uiLang, contentLang, previewFloorUrl, previewFloorUrls } = useAppStore();
@@ -28,10 +33,73 @@ export function ViewerPage() {
   const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
 
+  // Indoor multi-floor route state
+  const [indoorRoute, setIndoorRoute] = useState<IndoorRoute | null>(null);
+  const [indoorRouteFromId, setIndoorRouteFromId] = useState<string>("");
+  const [indoorRouteToId, setIndoorRouteToId] = useState<string>("");
+
   const clearRoute = useCallback(() => {
     setRouteCoords(undefined);
     setRouteInfo(null);
+    setIndoorRoute(null);
+    setIndoorRouteFromId("");
+    setIndoorRouteToId("");
   }, []);
+
+  // ─── Master mode researcher panel (shown only when ?master=1 in URL) ───
+  // The viewer normally hides researcher tools from end users (high schoolers, visitors).
+  // The researcher accesses by adding ?master=1 to the URL. They must then enter the
+  // master password to actually unlock the panel.
+  const [masterPanelOpen, setMasterPanelOpen] = useState<boolean>(() => {
+    try {
+      // URLSearchParams works on hash fragments by extracting the query part
+      const hash = window.location.hash; // e.g. "#/?master=1"
+      const qIdx = hash.indexOf("?");
+      if (qIdx < 0) return false;
+      const params = new URLSearchParams(hash.slice(qIdx + 1));
+      return params.get("master") === "1";
+    } catch { return false; }
+  });
+  const [masterPanelUnlocked, setMasterPanelUnlocked] = useState<boolean>(() => isMasterUnlocked());
+  const [masterPwInput, setMasterPwInput] = useState("");
+  const [masterPwError, setMasterPwError] = useState("");
+
+  const handleMasterUnlock = async () => {
+    setMasterPwError("");
+    const ok = await unlockMaster(masterPwInput);
+    if (!ok) {
+      setMasterPwError(uiLang === "ja" ? "パスワードが違います" : "Incorrect password");
+      return;
+    }
+    setMasterPanelUnlocked(true);
+    setMasterPwInput("");
+  };
+
+  const exportLogsAsCsv = () => {
+    const events = loadLogs();
+    if (events.length === 0) {
+      toast.info(uiLang === "ja" ? "ログがまだありません" : "No logs yet");
+      return;
+    }
+    const csv = logsToCsv(events);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    a.download = `atlaskobo_logs_${ts}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleClearLogs = () => {
+    if (!window.confirm(uiLang === "ja"
+      ? "このデバイスのログをすべて削除しますか？（送信先サーバーのデータは消えません）"
+      : "Delete all logs on this device? (Server data is unaffected)")) return;
+    clearLogs();
+    toast.success(uiLang === "ja" ? "ログを削除しました" : "Logs deleted");
+  };
+
 
   const onRoute = useCallback(async (poi: Poi) => {
     if (typeof poi.lat !== "number" || typeof poi.lng !== "number") return;
@@ -83,6 +151,48 @@ export function ViewerPage() {
   }, []);
 
   useEffect(() => { if (!isLoaded) void loadFromPublic(); }, [isLoaded, loadFromPublic]);
+
+  // ─────────────────────────────────────────────
+  // Research mode: install log flusher on unload
+  // ─────────────────────────────────────────────
+  const researchEnabled = !!config?.research?.enabled;
+  const researchSurveyUrl = config?.research?.surveyUrl ?? "";
+  const researchCollectLogs = !!config?.research?.collectLogs;
+  const researchLogEndpoint = (() => {
+    const raw = config?.research?.logEndpoint ?? "";
+    if (!raw) return "";
+    // Endpoints saved by the master mode are encoded with "ENC:" prefix.
+    // Decoding happens transparently here so the actual fetch uses the real URL.
+    if (raw.startsWith("ENC:")) return decodeEndpoint(raw);
+    return raw;
+  })();
+
+  useEffect(() => {
+    if (!researchEnabled || !researchCollectLogs) return;
+    return installUnloadFlusher(researchLogEndpoint);
+  }, [researchEnabled, researchCollectLogs, researchLogEndpoint]);
+
+  // Log POI view events when the user opens a marker detail
+  useEffect(() => {
+    if (!picked || !researchEnabled || !researchCollectLogs) return;
+    logEvent("poi_view", { poiId: picked.id, name: picked.name, floor: picked.floor || null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picked?.id]);
+
+  // Log search and floor change events
+  useEffect(() => {
+    if (!researchEnabled || !researchCollectLogs) return;
+    if (q && q.length >= 2) {
+      logEvent("search", { query: q });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q]);
+
+  useEffect(() => {
+    if (!researchEnabled || !researchCollectLogs || !activeFloor) return;
+    logEvent("floor_change", { floor: activeFloor });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFloor]);
 
   // Initialize active floor to first floor when config loads
   useEffect(() => {
@@ -226,6 +336,94 @@ export function ViewerPage() {
                     🟢 {t(uiLang, "open_only")}
                   </button>
                 ) : null}
+                {config?.mode === "outdoor" ? (
+                  <RouteToolbar
+                    uiLang={uiLang === "en" ? "en" : "ja"}
+                    contentLang={contentLang}
+                    pois={pois}
+                    hasRoute={!!routeCoords}
+                    routeInfo={routeInfo}
+                    onRoute={async (from, to, info) => {
+                      setRouteLoading(true);
+                      try {
+                        const lang = uiLang === "ja" ? "ja" : "en";
+                        const result = await fetchRoute(from, to, { profile: "foot" });
+                        setRouteCoords(result.coordinates);
+                        setRouteInfo({
+                          distance: formatDistance(result.distanceMeters, lang),
+                          duration: formatDuration(result.durationSeconds, lang),
+                        });
+                        setPicked(null);
+                      } catch (err: any) {
+                        // BUG #4 fix: surface routing errors so user knows
+                        toast.error(uiLang === "ja"
+                          ? `ルート取得に失敗しました: ${err?.message ?? err}`
+                          : `Failed to fetch route: ${err?.message ?? err}`);
+                      } finally {
+                        setRouteLoading(false);
+                      }
+                    }}
+                    onClear={clearRoute}
+                  />
+                ) : null}
+                {/* Indoor route picker (only when 2+ floors) */}
+                {config?.mode === "indoor" && (config.indoor?.floors ?? []).length >= 2 ? (
+                  <div className="indoorRouteSelect" style={{ display: "inline-flex", gap: 6 }}>
+                    <select
+                      value={indoorRouteFromId}
+                      onChange={(e) => setIndoorRouteFromId(e.target.value)}
+                      style={{ fontSize: 12, padding: "6px 8px" }}
+                      aria-label={uiLang === "ja" ? "出発地点" : "From"}
+                    >
+                      <option value="">{uiLang === "ja" ? "出発…" : "From…"}</option>
+                      {pois.filter(p => typeof p.x === "number" && typeof p.y === "number").map(p => (
+                        <option key={p.id} value={p.id}>{pickPoiName(p, contentLang)} ({p.floor || "?"})</option>
+                      ))}
+                    </select>
+                    <select
+                      value={indoorRouteToId}
+                      onChange={(e) => setIndoorRouteToId(e.target.value)}
+                      style={{ fontSize: 12, padding: "6px 8px" }}
+                      aria-label={uiLang === "ja" ? "目的地" : "To"}
+                    >
+                      <option value="">{uiLang === "ja" ? "目的…" : "To…"}</option>
+                      {pois.filter(p => typeof p.x === "number" && typeof p.y === "number").map(p => (
+                        <option key={p.id} value={p.id}>{pickPoiName(p, contentLang)} ({p.floor || "?"})</option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn primary"
+                      style={{ fontSize: 12, padding: "6px 12px" }}
+                      disabled={!indoorRouteFromId || !indoorRouteToId || indoorRouteFromId === indoorRouteToId}
+                      onClick={() => {
+                        const from = pois.find(p => p.id === indoorRouteFromId);
+                        const to = pois.find(p => p.id === indoorRouteToId);
+                        if (!from || !to) return;
+                        const route = findIndoorRoute(from, to, pois);
+                        if (!route) {
+                          toast.error(uiLang === "ja"
+                            ? "経路が見つかりませんでした。階段/EVが両フロアに正しく設定されているか確認してください。"
+                            : "No route found. Check that stairs/elevators are set up on both floors.");
+                          return;
+                        }
+                        setIndoorRoute(route);
+                        // Auto-switch to start floor
+                        if (route.startFloor) setActiveFloor(route.startFloor);
+                      }}
+                    >
+                      {uiLang === "ja" ? "🗺️ 経路" : "🗺️ Route"}
+                    </button>
+                    {indoorRoute ? (
+                      <button
+                        className="btn soft"
+                        style={{ fontSize: 12, padding: "6px 10px" }}
+                        onClick={clearRoute}
+                      >
+                        ✕
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <div className="row" style={{ gap: 8, marginTop: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
                 <button className="btn soft" onClick={onCopyUrl}>
@@ -344,6 +542,194 @@ export function ViewerPage() {
           onRoute={config.mode === "outdoor" ? onRoute : undefined}
           routeLoading={routeLoading}
         />
+      ) : null}
+
+      {/* Indoor route directions panel */}
+      {indoorRoute ? (
+        <div className="indoorRoutePanel">
+          <div className="indoorRoutePanelHeader">
+            <strong>{uiLang === "ja" ? "🗺️ 経路案内" : "🗺️ Route"}</strong>
+            <button
+              className="btn soft"
+              onClick={clearRoute}
+              aria-label={uiLang === "ja" ? "閉じる" : "Close"}
+              style={{ padding: "2px 8px", fontSize: 12 }}
+            >
+              <span aria-hidden="true">✕</span>
+            </button>
+          </div>
+          <div className="indoorRouteSummary">
+            {indoorRoute.startFloor === indoorRoute.endFloor ? (
+              <span>
+                {uiLang === "ja"
+                  ? `${indoorRoute.startFloor || "現在のフロア"} 内のみ`
+                  : `Within ${indoorRoute.startFloor || "current floor"}`}
+              </span>
+            ) : (
+              <span>
+                {indoorRoute.startFloor || "?"}
+                <span className="indoorRouteArrow"> → </span>
+                {indoorRoute.endFloor || "?"}
+              </span>
+            )}
+          </div>
+          {(() => {
+            const lines = describeRoute(indoorRoute, uiLang === "ja" ? "ja" : "en");
+            if (lines.length === 0) return null;
+            return (
+              <ol className="indoorRouteSteps">
+                {lines.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ol>
+            );
+          })()}
+          {/* Floor jumper buttons */}
+          <div className="indoorRouteFloors">
+            {Array.from(new Set([
+              indoorRoute.startFloor,
+              ...indoorRoute.steps
+                .filter(s => s.kind === "connector")
+                .map(s => (s as any).toFloor),
+              indoorRoute.endFloor,
+            ].filter(Boolean))).map(fid => (
+              <button
+                key={fid}
+                className={"btn " + (activeFloor === fid ? "primary" : "soft")}
+                style={{ fontSize: 12, padding: "4px 10px" }}
+                onClick={() => setActiveFloor(fid)}
+              >
+                {fid}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* ─────────────────────────────────────────────
+          Research mode: consent dialog and survey button
+          ───────────────────────────────────────────── */}
+      {researchEnabled ? (
+        <ConsentDialog
+          uiLang={uiLang === "en" ? "en" : "ja"}
+          projectName={config?.research?.projectName}
+          contactEmail={config?.research?.contactEmail}
+          collectLogs={researchCollectLogs}
+        />
+      ) : null}
+
+      {researchEnabled && researchSurveyUrl ? (
+        <a
+          href={researchSurveyUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+          onClick={() => {
+            if (researchCollectLogs) logEvent("survey_open");
+          }}
+          className="surveyFab"
+          aria-label={uiLang === "ja" ? "アンケートに回答する" : "Open survey"}
+          title={uiLang === "ja" ? "アンケートに回答する" : "Open survey"}
+        >
+          <span aria-hidden="true">📝</span>
+          <span>{uiLang === "ja" ? "アンケート" : "Survey"}</span>
+        </a>
+      ) : null}
+
+      {/* ───────────────────────────────────────
+          Researcher master panel (?master=1 URL flag)
+          Hidden from regular viewers. Requires password unlock.
+          ─────────────────────────────────────── */}
+      {masterPanelOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={uiLang === "ja" ? "研究者パネル" : "Researcher Panel"}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            background: "rgba(0,0,0,0.65)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setMasterPanelOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 480, width: "100%",
+              background: "var(--surface-1)",
+              border: "1px solid var(--line-strong)",
+              borderRadius: 12,
+              padding: 24,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+            }}
+          >
+            <div style={{ fontSize: 28, marginBottom: 8 }} aria-hidden="true">🔬</div>
+            <h2 style={{ fontSize: 18, margin: "0 0 16px", fontWeight: 600 }}>
+              {uiLang === "ja" ? "研究者パネル" : "Researcher Panel"}
+            </h2>
+
+            {!masterPanelUnlocked ? (
+              <>
+                <p style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+                  {uiLang === "ja"
+                    ? "マスターパスワードを入力してください。研究者専用機能（収集ログのエクスポート等）にアクセスできます。"
+                    : "Enter the master password to access researcher features (log export, etc.)."}
+                </p>
+                <input
+                  type="password"
+                  value={masterPwInput}
+                  onChange={(e) => setMasterPwInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleMasterUnlock(); }}
+                  autoFocus
+                  placeholder={uiLang === "ja" ? "パスワード" : "Password"}
+                  style={{ width: "100%", marginBottom: 12 }}
+                />
+                {masterPwError ? (
+                  <div style={{ color: "var(--danger)", fontSize: 13, marginBottom: 12 }}>
+                    {masterPwError}
+                  </div>
+                ) : null}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                  <button className="btn" onClick={() => setMasterPanelOpen(false)}>
+                    {uiLang === "ja" ? "キャンセル" : "Cancel"}
+                  </button>
+                  <button className="btn primary" onClick={handleMasterUnlock} disabled={!masterPwInput}>
+                    {uiLang === "ja" ? "ロック解除" : "Unlock"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+                  ✓ {uiLang === "ja"
+                    ? "ロック解除されました。このデバイスに保存された匿名ログを管理できます。"
+                    : "Unlocked. You can now manage anonymous logs stored on this device."}
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                  <button className="btn primary" onClick={exportLogsAsCsv}>
+                    📥 {uiLang === "ja" ? "ログをCSVでエクスポート" : "Export logs as CSV"}
+                  </button>
+                  <button className="btn" onClick={() => {
+                    const events = loadLogs();
+                    toast.info(uiLang === "ja"
+                      ? `現在 ${events.length} 件のイベントが保存されています`
+                      : `${events.length} events stored`);
+                  }}>
+                    📊 {uiLang === "ja" ? "保存件数を確認" : "Check event count"}
+                  </button>
+                  <button className="btn danger" onClick={handleClearLogs}>
+                    🗑️ {uiLang === "ja" ? "このデバイスのログを削除" : "Delete logs on this device"}
+                  </button>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button className="btn" onClick={() => setMasterPanelOpen(false)}>
+                    {uiLang === "ja" ? "閉じる" : "Close"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       ) : null}
     </main>
   );
