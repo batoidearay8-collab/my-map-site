@@ -5,8 +5,7 @@ import * as L from "leaflet";
 import JSZip from "jszip";
 import { z } from "zod";
 import { useAppStore, restoreBuilderDraftIfAny } from "../state/store";
-import { MasterModeDialog } from "../components/MasterModeDialog";
-import { isMasterUnlocked, encodeEndpoint, decodeEndpoint, isEncodedValue, maskedValue } from "../lib/masterMode";
+import { verifyToken, deployToGitHub } from "../lib/githubDeploy";
 import { ConfigSchema, PoiSchema, CategorySchema, type AppConfig, type Poi, type Category } from "../lib/schema";
 import { parseCategoriesFromCsv, parsePoisFromCsv, exampleCategoriesCsv, examplePoisCsv } from "../lib/csv";
 import { validateAll } from "../lib/validation";
@@ -262,15 +261,25 @@ const onUndo = useCallback(() => {
     setTutorialStep(-1);
   };
 
-  // ─── Master mode (researcher-only access) ───
-  const [masterDialogOpen, setMasterDialogOpen] = useState(false);
-  const [masterUnlocked, setMasterUnlockedState] = useState<boolean>(() => isMasterUnlocked());
-  // Re-check unlock state whenever dialog closes
-  useEffect(() => {
-    if (!masterDialogOpen) {
-      setMasterUnlockedState(isMasterUnlocked());
-    }
-  }, [masterDialogOpen]);
+  // ─── GitHub direct publish (PAT) ───
+  const [ghToken, setGhToken] = useState<string>(() => {
+    try { return localStorage.getItem("atlaskobo_github_token_v1") || ""; } catch { return ""; }
+  });
+  const [ghOwner, setGhOwner] = useState<string>(() => {
+    try { return localStorage.getItem("atlaskobo_github_owner_v1") || ""; } catch { return ""; }
+  });
+  const [ghRepo, setGhRepo] = useState<string>(() => {
+    try { return localStorage.getItem("atlaskobo_github_repo_v1") || ""; } catch { return ""; }
+  });
+  const [ghRemember, setGhRemember] = useState<boolean>(() => {
+    try { return !!localStorage.getItem("atlaskobo_github_token_v1"); } catch { return false; }
+  });
+  const [ghBusy, setGhBusy] = useState(false);
+  const [ghProgress, setGhProgress] = useState("");
+  const [ghProgressPct, setGhProgressPct] = useState(0);
+  const [ghResultUrl, setGhResultUrl] = useState("");
+  const [ghRepoUrl, setGhRepoUrl] = useState("");
+  const [ghVerifiedLogin, setGhVerifiedLogin] = useState("");
   const tutorialSteps = [
     {
       ja: {
@@ -1408,15 +1417,6 @@ const onUndo = useCallback(() => {
   aria-label={uiLang === "ja" ? "ヘルプ" : "Help"}
   style={{ width: 44, padding: 0, fontSize: 18, lineHeight: "44px", fontWeight: 700 }}
 >?</button>
-<button
-  className={"btn " + (masterUnlocked ? "primary" : "soft")}
-  onClick={() => setMasterDialogOpen(true)}
-  title={uiLang === "ja"
-    ? (masterUnlocked ? "マスターモード（解除中）" : "マスターモード")
-    : (masterUnlocked ? "Master mode (unlocked)" : "Master mode")}
-  aria-label={uiLang === "ja" ? "マスターモード" : "Master mode"}
-  style={{ width: 44, padding: 0, fontSize: 16, lineHeight: "44px" }}
->{masterUnlocked ? "🔓" : "🔐"}</button>
 <span className={"savePill " + (csvApplyState === "pending" ? "unsaved" : "saved")} title={uiLang === "ja" ? "CSVに反映されていない変更があるかを表示します" : "Shows whether there are changes not written to CSV"}>
   {csvApplyState === "pending" ? "⚠️" : "✅"} {t(uiLang, csvApplyState === "pending" ? "unsaved" : "saved")}
 </span>
@@ -2502,217 +2502,6 @@ const onUndo = useCallback(() => {
         {/* STEP 4 */}
         {step === 4 ? (
           <div className="cards">
-            {/* ────────────────────────────
-                Research mode (academic study) settings
-                ──────────────────────────── */}
-            <div className="card">
-              <div className="sectionTitle">
-                {uiLang === "ja" ? "🔬 研究モード（学術利用）" : "🔬 Research Mode (academic use)"}
-              </div>
-              <div className="hint">
-                {uiLang === "ja"
-                  ? "学術研究目的でこの地図を使う場合、利用者向けの同意ダイアログとアンケートボタンを表示できます。匿名のログ収集も任意で可能です。"
-                  : "If using this map for academic research, you can display a consent dialog and survey button to viewers, and optionally collect anonymous interaction logs."}
-              </div>
-
-              <div className="row" style={{ alignItems: "center", marginTop: 12, gap: 8 }}>
-                <input
-                  type="checkbox"
-                  id="research-enabled"
-                  checked={!!cfg.research?.enabled}
-                  onChange={(e) => {
-                    const next: AppConfig = {
-                      ...cfg,
-                      research: {
-                        ...(cfg.research ?? { enabled: false, surveyUrl: "", projectName: "", contactEmail: "", collectLogs: false, logEndpoint: "" }),
-                        enabled: e.target.checked,
-                      },
-                    };
-                    setBuilderConfig(next);
-                  }}
-                />
-                <label htmlFor="research-enabled" style={{ fontWeight: 500, cursor: "pointer" }}>
-                  {uiLang === "ja" ? "研究モードを有効にする" : "Enable research mode"}
-                </label>
-              </div>
-
-              {cfg.research?.enabled ? (
-                <div style={{ marginTop: 16, paddingLeft: 12, borderLeft: "3px solid var(--accent-soft)" }}>
-                  <label className="sectionTitleOnly" style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
-                    {uiLang === "ja" ? "プロジェクト名（同意ダイアログに表示）" : "Project name (shown in consent dialog)"}
-                  </label>
-                  <input
-                    type="text"
-                    value={cfg.research?.projectName ?? ""}
-                    onChange={(e) => {
-                      const next: AppConfig = {
-                        ...cfg,
-                        research: { ...(cfg.research!), projectName: e.target.value },
-                      };
-                      setBuilderConfig(next);
-                    }}
-                    placeholder={uiLang === "ja" ? "例: 高校文化祭マップ研究 2025" : "e.g. School Festival Map Study 2025"}
-                  />
-
-                  <label className="sectionTitleOnly" style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginTop: 12, marginBottom: 4 }}>
-                    {uiLang === "ja" ? "連絡先メールアドレス（撤回・問い合わせ用）" : "Contact email (for withdrawal/questions)"}
-                  </label>
-                  <input
-                    type="email"
-                    value={cfg.research?.contactEmail ?? ""}
-                    onChange={(e) => {
-                      const next: AppConfig = {
-                        ...cfg,
-                        research: { ...(cfg.research!), contactEmail: e.target.value },
-                      };
-                      setBuilderConfig(next);
-                    }}
-                    placeholder="researcher@example.com"
-                  />
-
-                  <label className="sectionTitleOnly" style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginTop: 12, marginBottom: 4 }}>
-                    {uiLang === "ja" ? "📝 アンケートURL（Google Forms等）" : "📝 Survey URL (Google Forms, etc.)"}
-                  </label>
-                  <input
-                    type="url"
-                    value={cfg.research?.surveyUrl ?? ""}
-                    onChange={(e) => {
-                      const next: AppConfig = {
-                        ...cfg,
-                        research: { ...(cfg.research!), surveyUrl: e.target.value },
-                      };
-                      setBuilderConfig(next);
-                    }}
-                    placeholder="https://forms.gle/..."
-                  />
-                  <div className="hint" style={{ fontSize: 11, marginTop: 4 }}>
-                    {uiLang === "ja"
-                      ? "設定すると、地図画面の右下に「📝 アンケート」ボタンが表示されます。"
-                      : "When set, a '📝 Survey' button will appear at the bottom-right of the map."}
-                  </div>
-
-                  <div className="row" style={{ alignItems: "center", marginTop: 16, gap: 8 }}>
-                    <input
-                      type="checkbox"
-                      id="research-logs"
-                      checked={!!cfg.research?.collectLogs}
-                      onChange={(e) => {
-                        const next: AppConfig = {
-                          ...cfg,
-                          research: { ...(cfg.research!), collectLogs: e.target.checked },
-                        };
-                        setBuilderConfig(next);
-                      }}
-                    />
-                    <label htmlFor="research-logs" style={{ fontWeight: 500, cursor: "pointer" }}>
-                      {uiLang === "ja" ? "匿名利用ログを収集する（同意した利用者のみ）" : "Collect anonymous usage logs (consenting users only)"}
-                    </label>
-                  </div>
-                  <div className="hint" style={{ fontSize: 11, marginTop: 4 }}>
-                    {uiLang === "ja"
-                      ? "POI閲覧、検索ワード、フロア切替などを匿名で記録します。利用者の同意がない限り、データは収集されません。"
-                      : "Records POI views, searches, floor switches anonymously. No data is collected without explicit user consent."}
-                  </div>
-
-                  {cfg.research?.collectLogs ? (
-                    <div style={{ marginTop: 12 }}>
-                      <label className="sectionTitleOnly" style={{ fontSize: 12, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
-                        🔐 {uiLang === "ja" ? "ログ送信先URL（マスターモード保護・任意）" : "Log endpoint URL (master-mode protected, optional)"}
-                      </label>
-                      {masterUnlocked ? (
-                        <>
-                          <input
-                            type="url"
-                            value={decodeEndpoint(cfg.research?.logEndpoint ?? "")}
-                            onChange={(e) => {
-                              const next: AppConfig = {
-                                ...cfg,
-                                research: {
-                                  ...(cfg.research!),
-                                  // Encode before saving so it's not readable in plain config.json
-                                  logEndpoint: e.target.value ? encodeEndpoint(e.target.value) : "",
-                                },
-                              };
-                              setBuilderConfig(next);
-                            }}
-                            placeholder="https://..."
-                          />
-                          <div className="hint" style={{ fontSize: 11, marginTop: 4 }}>
-                            ✓ {uiLang === "ja"
-                              ? "マスターモード解除中。値は暗号化されてZIPに含まれます。空ならlocalStorageのみ。"
-                              : "Master mode unlocked. Value is encrypted in the ZIP. Empty = localStorage only."}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div
-                            style={{
-                              padding: "8px 12px",
-                              background: "var(--surface-2)",
-                              border: "1px dashed var(--line)",
-                              borderRadius: 6,
-                              color: "var(--text-muted)",
-                              fontSize: 13,
-                              fontFamily: "monospace",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 8,
-                            }}
-                          >
-                            <span>
-                              {cfg.research?.logEndpoint
-                                ? maskedValue("set", 0)
-                                : (uiLang === "ja" ? "（未設定）" : "(not set)")}
-                            </span>
-                            <button
-                              className="btn"
-                              style={{ padding: "2px 10px", fontSize: 11 }}
-                              onClick={() => setMasterDialogOpen(true)}
-                            >
-                              🔐 {uiLang === "ja" ? "ロック解除して編集" : "Unlock to edit"}
-                            </button>
-                          </div>
-                          <div className="hint" style={{ fontSize: 11, marginTop: 4 }}>
-                            {uiLang === "ja"
-                              ? "この項目は研究者専用です。マスターパスワードでロックを解除してください。"
-                              : "This field is researcher-only. Unlock with master password to edit."}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : null}
-
-                  {/* Researcher-only: View collected logs (only visible when unlocked) */}
-                  {masterUnlocked && cfg.research?.collectLogs ? (
-                    <div style={{ marginTop: 16, padding: 12, background: "var(--surface-2)", borderRadius: 6 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
-                        🔬 {uiLang === "ja" ? "収集データ管理（研究者専用）" : "Collected Data Management (researcher only)"}
-                      </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button
-                          className="btn"
-                          style={{ fontSize: 12 }}
-                          onClick={() => {
-                            // Open a new tab to viewer with a special master-mode link
-                            // that auto-shows the data export panel
-                            const url = location.href.replace(/#\/builder.*/, "#/?master=1");
-                            window.open(url, "_blank");
-                          }}
-                        >
-                          👁️ {uiLang === "ja" ? "ビューワーでデータ確認" : "View in viewer"}
-                        </button>
-                      </div>
-                      <div className="hint" style={{ fontSize: 11, marginTop: 6 }}>
-                        {uiLang === "ja"
-                          ? "ビューワーで?master=1付きで開くと、収集ログをCSVエクスポートできます。"
-                          : "Opens viewer with master flag, allowing CSV export of collected logs."}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
 
             <div className="card">
               <div className="sectionTitle">{t(uiLang, "publish_title")}</div>
@@ -2742,139 +2531,199 @@ const onUndo = useCallback(() => {
               </div>
 
               {/* ─────────────────────────────────────────────
-                  Research mode configuration
+                  GitHub direct publish (PAT)
                   ───────────────────────────────────────────── */}
-              <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--line)" }}>
+              <div style={{ marginTop: 20, padding: 16, border: "1px solid var(--line)", borderRadius: 10, background: "var(--card2)" }}>
                 <div className="sectionTitle">
-                  {uiLang === "ja" ? "🔬 研究モード（任意）" : "🔬 Research Mode (optional)"}
+                  🚀 {uiLang === "ja" ? "GitHubに直接公開" : "Publish directly to GitHub"}
                 </div>
-                <div className="hint">
+                <div className="hint" style={{ marginBottom: 12 }}>
                   {uiLang === "ja"
-                    ? "学術研究や授業実践でこのマップを使う場合、来場者にアンケート依頼と匿名ログ収集ができます。倫理審査・同意取得の上でご利用ください。"
-                    : "For academic research or classroom use: enable a survey link and anonymous usage logs. Make sure you have proper consent."}
+                    ? "Personal Access Token (PAT) を使って、ブラウザから直接GitHub Pagesに公開します。下のZIPダウンロードも引き続き利用できます。"
+                    : "Publish directly to GitHub Pages from your browser using a Personal Access Token (PAT). ZIP download below remains available."}
                 </div>
 
-                <div style={{ marginTop: 12 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input
-                      type="checkbox"
-                      checked={!!cfg.research?.enabled}
-                      onChange={(e) => setBuilderConfig({
-                        ...cfg,
-                        research: {
-                          enabled: e.target.checked,
-                          surveyUrl: cfg.research?.surveyUrl ?? "",
-                          projectName: cfg.research?.projectName ?? "",
-                          contactEmail: cfg.research?.contactEmail ?? "",
-                          collectLogs: cfg.research?.collectLogs ?? false,
-                          logEndpoint: cfg.research?.logEndpoint ?? "",
-                        },
-                      })}
-                    />
-                    <strong>{uiLang === "ja" ? "研究モードを有効にする" : "Enable research mode"}</strong>
-                  </label>
-                </div>
+                <details style={{ marginBottom: 12, fontSize: 13 }}>
+                  <summary style={{ cursor: "pointer", color: "var(--accent)" }}>
+                    {uiLang === "ja" ? "PATの取得方法（クリックで開く）" : "How to get a PAT (click to expand)"}
+                  </summary>
+                  <ol style={{ paddingLeft: 20, marginTop: 8, lineHeight: 1.7 }}>
+                    <li>{uiLang === "ja" ? "GitHubにログイン" : "Sign in to GitHub"}</li>
+                    <li>{uiLang === "ja" ? "Settings → Developer settings → Personal access tokens → Tokens (classic)" : "Settings → Developer settings → Personal access tokens → Tokens (classic)"}</li>
+                    <li>{uiLang === "ja" ? "「Generate new token (classic)」をクリック" : "Click 'Generate new token (classic)'"}</li>
+                    <li>{uiLang === "ja" ? "スコープ（権限）で「repo」にチェック" : "Check the 'repo' scope"}</li>
+                    <li>{uiLang === "ja" ? "トークンを生成し、コピーして下に貼り付け" : "Generate, copy, and paste below"}</li>
+                  </ol>
+                  <a href="https://github.com/settings/tokens/new?scopes=repo&description=AtlasKobo"
+                     target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>
+                    {uiLang === "ja" ? "→ トークン作成ページを開く（repo権限が選択済み）" : "→ Open token creation page (repo scope pre-selected)"}
+                  </a>
+                </details>
 
-                {cfg.research?.enabled ? (
-                  <div style={{ marginTop: 12, paddingLeft: 24, display: "flex", flexDirection: "column", gap: 10 }}>
-                    <label style={{ display: "block" }}>
-                      <span style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
-                        {uiLang === "ja" ? "研究プロジェクト名" : "Project name"}
-                      </span>
-                      <input
-                        type="text"
-                        value={cfg.research?.projectName ?? ""}
-                        onChange={(e) => setBuilderConfig({
-                          ...cfg,
-                          research: { ...cfg.research!, projectName: e.target.value },
-                        })}
-                        placeholder={uiLang === "ja" ? "例: ○○高校文化祭マップ研究" : "e.g. School Festival Map Study"}
-                        style={{ width: "100%" }}
-                      />
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>
+                      Personal Access Token
                     </label>
-
-                    <label style={{ display: "block" }}>
-                      <span style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
-                        {uiLang === "ja" ? "アンケートURL（Google Forms等）" : "Survey URL (Google Forms, etc.)"}
-                      </span>
+                    <div style={{ display: "flex", gap: 6 }}>
                       <input
-                        type="url"
-                        value={cfg.research?.surveyUrl ?? ""}
-                        onChange={(e) => setBuilderConfig({
-                          ...cfg,
-                          research: { ...cfg.research!, surveyUrl: e.target.value },
-                        })}
-                        placeholder="https://docs.google.com/forms/d/e/.../viewform"
-                        style={{ width: "100%" }}
+                        type="password"
+                        value={ghToken}
+                        onChange={(e) => { setGhToken(e.target.value); setGhVerifiedLogin(""); }}
+                        placeholder="ghp_xxxxxxxxxxxx"
+                        style={{ flex: 1 }}
+                        autoComplete="off"
                       />
-                      <span className="hint" style={{ display: "block", fontSize: 11, marginTop: 2 }}>
-                        {uiLang === "ja"
-                          ? "設定すると、マップ右下に「📝 アンケート」ボタンが表示されます。"
-                          : "Adds a 📝 Survey button to the bottom-right of the map."}
-                      </span>
-                    </label>
-
-                    <label style={{ display: "block" }}>
-                      <span style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
-                        {uiLang === "ja" ? "問い合わせメールアドレス" : "Contact email"}
-                      </span>
-                      <input
-                        type="email"
-                        value={cfg.research?.contactEmail ?? ""}
-                        onChange={(e) => setBuilderConfig({
-                          ...cfg,
-                          research: { ...cfg.research!, contactEmail: e.target.value },
-                        })}
-                        placeholder="researcher@example.ac.jp"
-                        style={{ width: "100%" }}
-                      />
-                    </label>
-
-                    <label style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 4 }}>
-                      <input
-                        type="checkbox"
-                        checked={!!cfg.research?.collectLogs}
-                        onChange={(e) => setBuilderConfig({
-                          ...cfg,
-                          research: { ...cfg.research!, collectLogs: e.target.checked },
-                        })}
-                        style={{ marginTop: 3 }}
-                      />
-                      <span>
-                        <strong>{uiLang === "ja" ? "匿名利用ログを収集する" : "Collect anonymous usage logs"}</strong>
-                        <span className="hint" style={{ display: "block", fontSize: 11 }}>
-                          {uiLang === "ja"
-                            ? "POI閲覧、検索、フロア切替などを匿名で記録します。同意ダイアログが利用者に表示されます。"
-                            : "Records POI views, searches, floor changes anonymously. Consent dialog is shown to users."}
-                        </span>
-                      </span>
-                    </label>
-
-                    {cfg.research?.collectLogs ? (
-                      <label style={{ display: "block" }}>
-                        <span style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
-                          {uiLang === "ja" ? "ログ送信先URL（任意・空ならlocalStorageのみ）" : "Log endpoint URL (optional)"}
-                        </span>
-                        <input
-                          type="url"
-                          value={cfg.research?.logEndpoint ?? ""}
-                          onChange={(e) => setBuilderConfig({
-                            ...cfg,
-                            research: { ...cfg.research!, logEndpoint: e.target.value },
-                          })}
-                          placeholder="https://your-webhook.example.com/logs"
-                          style={{ width: "100%" }}
-                        />
-                        <span className="hint" style={{ display: "block", fontSize: 11, marginTop: 2 }}>
-                          {uiLang === "ja"
-                            ? "未設定の場合、ログはブラウザのlocalStorageに保存されます。データは利用者の端末から手動で取り出す必要があります。"
-                            : "If unset, logs stay in localStorage on the user's device only."}
-                        </span>
-                      </label>
+                      <button
+                        className="btn"
+                        disabled={ghBusy || !ghToken}
+                        onClick={async () => {
+                          setGhBusy(true);
+                          try {
+                            const r = await verifyToken(ghToken);
+                            if (r.ok && r.login) {
+                              setGhVerifiedLogin(r.login);
+                              if (!ghOwner) setGhOwner(r.login);
+                              toast.success(uiLang === "ja" ? `認証成功: ${r.login}` : `Verified: ${r.login}`);
+                            } else {
+                              toast.error(uiLang === "ja" ? `認証失敗: ${r.error}` : `Verification failed: ${r.error}`);
+                            }
+                          } finally { setGhBusy(false); }
+                        }}
+                      >
+                        {uiLang === "ja" ? "確認" : "Verify"}
+                      </button>
+                    </div>
+                    {ghVerifiedLogin ? (
+                      <div style={{ fontSize: 12, color: "#2a8", marginTop: 4 }}>
+                        ✓ {uiLang === "ja" ? `認証済み: ${ghVerifiedLogin}` : `Verified: ${ghVerifiedLogin}`}
+                      </div>
                     ) : null}
                   </div>
-                ) : null}
+
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 140 }}>
+                      <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>
+                        {uiLang === "ja" ? "GitHubユーザー名" : "GitHub username"}
+                      </label>
+                      <input type="text" value={ghOwner} onChange={(e) => setGhOwner(e.target.value)}
+                        placeholder={ghVerifiedLogin || "username"} style={{ width: "100%" }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 140 }}>
+                      <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 4 }}>
+                        {uiLang === "ja" ? "リポジトリ名" : "Repository name"}
+                      </label>
+                      <input type="text" value={ghRepo} onChange={(e) => setGhRepo(e.target.value)}
+                        placeholder="school-festival-map" style={{ width: "100%" }} />
+                    </div>
+                  </div>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                    <input type="checkbox" checked={ghRemember} onChange={(e) => setGhRemember(e.target.checked)} />
+                    {uiLang === "ja" ? "このブラウザにトークンを保存する" : "Remember token in this browser"}
+                  </label>
+                  {ghRemember ? (
+                    <div style={{ fontSize: 11, color: "#b80", paddingLeft: 24 }}>
+                      ⚠️ {uiLang === "ja"
+                        ? "共有PCでは保存しないでください。トークンは他人のリポジトリも操作できます。"
+                        : "Do not save on shared computers. The token can modify your repositories."}
+                    </div>
+                  ) : null}
+
+                  {ghBusy && ghProgress ? (
+                    <div style={{ marginTop: 4 }}>
+                      <div style={{ fontSize: 13, marginBottom: 4 }}>{ghProgress}</div>
+                      <div style={{ height: 8, background: "var(--line)", borderRadius: 999, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${ghProgressPct}%`, background: "var(--accent)", transition: "width .3s" }} />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {ghResultUrl ? (
+                    <div style={{ marginTop: 8, padding: 12, background: "var(--card)", borderRadius: 8, border: "1px solid var(--line)" }}>
+                      <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                        ✅ {uiLang === "ja" ? "公開完了" : "Published"}
+                      </div>
+                      <div style={{ fontSize: 13, marginBottom: 6 }}>
+                        {uiLang === "ja" ? "公開URL（反映まで1〜3分かかります）:" : "Published URL (takes 1–3 min to go live):"}
+                      </div>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                        <a href={ghResultUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>
+                          {ghResultUrl}
+                        </a>
+                        <button className="btn" style={{ padding: "2px 10px", fontSize: 12 }}
+                          onClick={() => { navigator.clipboard?.writeText(ghResultUrl); toast.success(uiLang === "ja" ? "コピーしました" : "Copied"); }}>
+                          {uiLang === "ja" ? "コピー" : "Copy"}
+                        </button>
+                      </div>
+                      {ghRepoUrl ? (
+                        <div style={{ fontSize: 12, marginTop: 6 }}>
+                          <a href={ghRepoUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)" }}>
+                            {uiLang === "ja" ? "リポジトリを開く" : "Open repository"} →
+                          </a>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <button
+                    className="btn primary"
+                    disabled={ghBusy}
+                    style={{ marginTop: 4 }}
+                    onClick={async () => {
+                      if (!ghToken) { toast.error(uiLang === "ja" ? "トークンを入力してください" : "Please enter a token"); return; }
+                      if (!ghRepo) { toast.error(uiLang === "ja" ? "リポジトリ名を入力してください" : "Please enter a repository name"); return; }
+                      if (!/^[A-Za-z0-9._-]+$/.test(ghRepo)) {
+                        toast.error(uiLang === "ja" ? "リポジトリ名に使用できない文字が含まれています" : "Repository name contains invalid characters");
+                        return;
+                      }
+                      setGhBusy(true);
+                      setGhResultUrl("");
+                      setGhRepoUrl("");
+                      setGhProgressPct(0);
+                      try {
+                        if (ghRemember) {
+                          localStorage.setItem("atlaskobo_github_token_v1", ghToken);
+                          localStorage.setItem("atlaskobo_github_owner_v1", ghOwner);
+                          localStorage.setItem("atlaskobo_github_repo_v1", ghRepo);
+                        } else {
+                          localStorage.removeItem("atlaskobo_github_token_v1");
+                          localStorage.setItem("atlaskobo_github_owner_v1", ghOwner);
+                          localStorage.setItem("atlaskobo_github_repo_v1", ghRepo);
+                        }
+                      } catch { /* ignore */ }
+                      try {
+                        const result = await deployToGitHub({
+                          token: ghToken,
+                          owner: ghOwner,
+                          repo: ghRepo,
+                          exportInput: {
+                            config: cfg, pois: builderPois, categories: builderCategories,
+                            floorFile: builderAssets.floorFile, floorFiles: builderAssets.floorFiles, images: builderAssets.images,
+                            themePreset: publishTheme,
+                          },
+                          onProgress: (msg, pct) => { setGhProgress(msg); if (typeof pct === "number") setGhProgressPct(pct); },
+                        });
+                        if (result.ok && result.url) {
+                          setGhResultUrl(result.url);
+                          setGhRepoUrl(result.repoUrl || "");
+                          toast.success(uiLang === "ja" ? "公開しました！" : "Published!");
+                        } else {
+                          toast.error(uiLang === "ja" ? `公開に失敗しました: ${result.error}` : `Deploy failed: ${result.error}`);
+                        }
+                      } catch (err: any) {
+                        toast.error(uiLang === "ja" ? `エラー: ${err?.message ?? err}` : `Error: ${err?.message ?? err}`);
+                      } finally {
+                        setGhBusy(false);
+                        setGhProgress("");
+                      }
+                    }}
+                  >
+                    {ghBusy ? (uiLang === "ja" ? "公開中…" : "Publishing…") : (uiLang === "ja" ? "🚀 GitHubに公開する" : "🚀 Publish to GitHub")}
+                  </button>
+                </div>
               </div>
+
 
               <div className="row" style={{ gap: 10, marginTop: 14, flexWrap: "wrap", justifyContent: "flex-start" }}>
                 <button
@@ -2995,14 +2844,6 @@ const onUndo = useCallback(() => {
           onClose={() => setQrOpen(false)}
           uiLang={uiLang}
           url={location.href.replace(/#\/builder.*/, "#/" )}
-        />
-      ) : null}
-
-      {masterDialogOpen ? (
-        <MasterModeDialog
-          uiLang={uiLang === "en" ? "en" : "ja"}
-          onClose={() => setMasterDialogOpen(false)}
-          onUnlocked={() => setMasterUnlockedState(true)}
         />
       ) : null}
     </main>
