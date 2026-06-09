@@ -1,0 +1,57 @@
+{
+  "name": "map-site-framework",
+  "private": true,
+  "version": "10.12.1",
+  "description": "高校文化祭などの屋内外マップを、コードを書かずに作成・公開できるノーコード地図作成フレームワーク（React + Leaflet, 100% OSS）",
+  "license": "MIT",
+  "author": "Eito Kitada (北田永翔)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/batoidearay8-collab/AtlasKobo.git"
+  },
+  "homepage": "https://github.com/batoidearay8-collab/AtlasKobo",
+  "keywords": [
+    "map",
+    "leaflet",
+    "no-code",
+    "openstreetmap",
+    "pwa",
+    "indoor-map",
+    "github-pages",
+    "education"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:data": "node scripts/build-data.mjs",
+    "build": "npm run build:data && vite build",
+    "preview": "vite preview",
+    "pack": "npm run build && node scripts/pack.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "browser-image-compression": "^2.0.2",
+    "jszip": "^3.10.1",
+    "leaflet": "^1.9.4",
+    "papaparse": "^5.4.1",
+    "qrcode": "^1.5.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1",
+    "react-router-dom": "^6.26.2",
+    "zustand": "^4.5.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/papaparse": "^5.3.14",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.8",
+    "vite-plugin-pwa": "^0.20.5",
+    "vitest": "^2.1.0"
+  }
+}
