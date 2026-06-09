@@ -1,0 +1,40 @@
+{
+  "title": "Map Site",
+  "subtitle": "",
+  "template": "event",
+  "mode": "outdoor",
+  "privacy": {
+    "stripImageMetadata": true,
+    "roundOutdoorLatLngDecimals": 5,
+    "hideExactOutdoorLocationByDefault": false
+  },
+  "outdoor": {
+    "center": [
+      35.681236,
+      139.767125
+    ],
+    "zoom": 15
+  },
+  "indoor": {
+    "imageUrl": "/assets/floor.png",
+    "imageWidthPx": 2000,
+    "imageHeightPx": 1200,
+    "minZoom": -2,
+    "maxZoom": 2
+  },
+  "i18n": {
+    "defaultLang": "ja",
+    "supportedLangs": [
+      "ja",
+      "en"
+    ]
+  },
+  "titleI18n": {
+    "ja": "マップサイト",
+    "en": "Map Site"
+  },
+  "subtitleI18n": {
+    "ja": "",
+    "en": ""
+  }
+}

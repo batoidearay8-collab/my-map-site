@@ -1,0 +1,6 @@
+category,label,label_ja,icon,order,markerType,markerColor
+食べ物,Food,食べ物,🍔,1,badge,#ff6b6b
+展示,Exhibits,展示,🎨,2,pin,#6ea8fe
+ステージ,Stage,ステージ,🎤,3,flag,#f0ad4e
+トイレ,Toilet,トイレ,🚻,4,square,#5cb85c
+休憩,Rest,休憩,🪑,5,ring,#20c997
