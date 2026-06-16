@@ -1,0 +1,27 @@
+{
+  "files": [
+    "apple-touch-icon.png",
+    "assets/floor.png",
+    "assets/index-B76x-0Oz.js",
+    "assets/index-B76x-0Oz.js.map",
+    "assets/index-BVYUcbPX.css",
+    "brand/logo.svg",
+    "data/categories.json",
+    "data/config.json",
+    "data/pois.json",
+    "favicon.svg",
+    "icons/icon-192.png",
+    "icons/icon-512.png",
+    "index.html",
+    "manifest.webmanifest",
+    "registerSW.js",
+    "sw.js",
+    "sw.js.map",
+    "workbox-66610c77.js",
+    "workbox-66610c77.js.map",
+    "brand/logo.png",
+    "favicon.ico",
+    "favicon-16x16.png",
+    "favicon-32x32.png"
+  ]
+}
