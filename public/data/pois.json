@@ -1,0 +1,56 @@
+[
+  {
+    "id": "1",
+    "name": "Info desk",
+    "description": "Info / Lost & found",
+    "category": "展示",
+    "image": "",
+    "url": "",
+    "nameI18n": {
+      "ja": "本部"
+    },
+    "descriptionI18n": {
+      "ja": "案内・落とし物"
+    },
+    "lat": 35.681236,
+    "lng": 139.767125,
+    "x": 0.52,
+    "y": 0.18
+  },
+  {
+    "id": "2",
+    "name": "Stage A",
+    "description": "Morning: dance",
+    "category": "ステージ",
+    "image": "",
+    "url": "",
+    "nameI18n": {
+      "ja": "ステージA"
+    },
+    "descriptionI18n": {
+      "ja": "午前はダンス"
+    },
+    "lat": 35.6805,
+    "lng": 139.7667,
+    "x": 0.68,
+    "y": 0.62
+  },
+  {
+    "id": "3",
+    "name": "Toilet",
+    "description": "Often crowded",
+    "category": "トイレ",
+    "image": "",
+    "url": "",
+    "nameI18n": {
+      "ja": "トイレ"
+    },
+    "descriptionI18n": {
+      "ja": "混雑しやすい"
+    },
+    "lat": 35.6817,
+    "lng": 139.768,
+    "x": 0.12,
+    "y": 0.4
+  }
+]
